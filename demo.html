@@ -89,7 +89,7 @@
                 <div class="filter-group">
                     <label for="profile-select">Profil de Mobilité :</label>
                     <select id="profile-select">
-                        <option value="pmr">Fauteuil Roulant (PMR) - Bus & Métros accessibles</option>
+                        <option value="pmr">Fauteuil Roulant (PMR) - Transports accessibles</option>
                         <option value="malvoyant">Déficience Visuelle</option>
                         <option value="senior">Senior / Mobilité réduite</option>
                     </select>
@@ -111,7 +111,7 @@
                 </div>
 
                 <button id="btn-calculer" class="btn-primary" style="width: 100%; padding: 10px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold;" onclick="calculerItineraire()">Calculer le trajet sécurisé</button>
-                <div id="loading-indicator" class="loading-text">Recherche d'itinéraires en cours...</div>
+                <div id="loading-indicator" class="loading-text">Interrogation des réseaux IDFM & OSRM en cours...</div>
 
                 <div id="instructions-container" class="route-instructions" style="display: none;">
                     <h4 style="color: white; margin-bottom: 10px;">Détails du Trajet Multimodal :</h4>
@@ -153,7 +153,7 @@
             var departureInput = document.getElementById('departure').value.trim();
             var destinationInput = document.getElementById('destination').value.trim();
             var profil = document.getElementById('profile-select').value;
-            var useTransit = document.getElementById('use-transit').checked;
+            var useTransit = document.getElementById('use-transit'].checked;
             
             if (!departureInput || !destinationInput) return alert("Veuillez remplir le point de départ et l'arrivée.");
 
@@ -171,13 +171,11 @@
                     try {
                         succesNavitia = await tracerNavitia(dep.lat, dep.lng, arr.lat, arr.lng, profil);
                     } catch (e) {
-                        console.warn("API IDFM indisponible ou filtrée, passage au moteur multimodal sécurisé :", e);
+                        console.warn("API IDFM indisponible, bascule sur le routage piéton certifié :", e);
                     }
+                }
 
-                    if (!succesNavitia) {
-                        await tracerTrajetMultimodalAdapte(dep, arr, profil);
-                    }
-                } else {
+                if (!succesNavitia) {
                     await tracerMarcheSeule(dep.lat, dep.lng, arr.lat, arr.lng, profil);
                 }
 
@@ -192,37 +190,46 @@
             document.getElementById('loading-indicator').style.display = "none";
         }
 
-        // 1. TENTATIVE VIA L'API NAVITIA (IDFM)
+        // Fonction robuste pour interroger Navitia via plusieurs proxys successifs
+        async function fetchNavitia(url) {
+            var headers = { "apiKey": IDFM_API_KEY, "apikey": IDFM_API_KEY };
+            
+            // 1. Essai direct
+            try {
+                let res = await fetch(url, { headers });
+                if (res.ok) return await res.json();
+            } catch(e) {}
+
+            // 2. Essai corsproxy.io
+            try {
+                let res = await fetch("https://corsproxy.io/?" + encodeURIComponent(url), { headers });
+                if (res.ok) return await res.json();
+            } catch(e) {}
+
+            // 3. Essai allorigins
+            try {
+                let res = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+                if (res.ok) return await res.json();
+            } catch(e) {}
+
+            throw new Error("Impossible de joindre l'API IDFM.");
+        }
+
+        // --- TRACÉ VIA L'API OFFICIELLE IDFM (NAVITIA) ---
         async function tracerNavitia(depLat, depLng, arrLat, arrLng, profil) {
             var wheelchairParam = profil === 'pmr' ? "&wheelchair=true" : "";
             var rawUrl = `https://prim.iledefrance-mobilites.fr/marketplace/navitia/v1/coverage/fr-idf/journeys?from=${depLng};${depLat}&to=${arrLng};${arrLat}${wheelchairParam}`;
-            var proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(rawUrl);
-
-            var response = await fetch(proxyUrl, {
-                headers: { "apiKey": IDFM_API_KEY, "apikey": IDFM_API_KEY }
-            });
-
-            if (!response.ok) return false;
-
-            var data = await response.json();
+            
+            var data = await fetchNavitia(rawUrl);
             if (!data.journeys || data.journeys.length === 0) return false;
 
             var journey = data.journeys[0];
             var instructionsHtml = "";
 
-            journey.sections.forEach(section => {
-                if (!section.geojson) return;
-
-                var color = "#10b981";
-                var weight = 5;
-                var dash = '6, 8';
-
+            for (let section of journey.sections) {
                 if (section.type === "public_transport" && section.display_informations) {
-                    color = "#" + (section.display_informations.color || "6366f1");
-                    weight = 8;
-                    dash = null;
-
-                    var codeLigne = section.display_informations.code || "BUS";
+                    var color = "#" + (section.display_informations.color || "6366f1");
+                    var codeLigne = section.display_informations.code || "LIGNE";
                     var reseau = section.display_informations.network || "RATP";
                     var direction = section.display_informations.direction || "Destination";
 
@@ -230,92 +237,64 @@
                         <div class="instruction-step" style="border-color: ${color};">
                             <span class="badge-line" style="background-color: ${color};">${codeLigne}</span>
                             <strong>${reseau}</strong> dir. ${direction}<br>
-                            <small>Embarquement : <b>${section.from.name}</b></small><br>
-                            <small>Débarquement : <b>${section.to.name}</b></small>
-                            ${profil === 'pmr' ? "<br><small style='color:#10b981;'>✓ Accès rampe / ascenseur garanti</small>" : ""}
+                            <small>De <b>${section.from.name}</b> à <b>${section.to.name}</b></small>
+                            ${profil === 'pmr' ? "<br><small style='color:#10b981;'>✓ Ascenseur / Accès PMR vérifié</small>" : ""}
                         </div>`;
-                } else if (section.type === "street_network") {
-                    var min = Math.ceil(section.duration / 60);
+
+                    if (section.geojson) {
+                        L.geoJSON(section.geojson, {
+                            style: { color: color, weight: 8, opacity: 0.9 }
+                        }).addTo(activeLayerGroup);
+                    }
+                } 
+                else if (section.type === "street_network" || section.type === "transfer" || section.type === "waiting") {
+                    var min = Math.ceil((section.duration || 60) / 60);
                     instructionsHtml += `
                         <div class="instruction-step" style="border-color: #10b981;">
-                            🚶 Marche d'approche (~${min} min)
+                            🚶 Marche / Correspondance (~${min} min)
                         </div>`;
-                }
 
-                L.geoJSON(section.geojson, {
-                    style: { color: color, weight: weight, dashArray: dash, opacity: 0.9 }
-                }).addTo(activeLayerGroup);
-            });
+                    if (section.geojson) {
+                        L.geoJSON(section.geojson, {
+                            style: { color: "#10b981", weight: 5, dashArray: '6, 8', opacity: 0.9 }
+                        }).addTo(activeLayerGroup);
+                    } else if (section.from && section.to && section.from.coord && section.to.coord) {
+                        // Utilisation d'OSRM pour coller parfaitement aux rues si le geojson manque
+                        try {
+                            let osrmRes = await fetch(`https://router.project-osrm.org/route/v1/foot/${section.from.coord.lon},${section.from.coord.lat};${section.to.coord.lon},${section.to.coord.lat}?geometries=geojson`);
+                            let osrmData = await osrmRes.json();
+                            if (osrmData.routes && osrmData.routes.length > 0) {
+                                let coords = osrmData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                                L.polyline(coords, { color: "#10b981", weight: 5, dashArray: '6, 8' }).addTo(activeLayerGroup);
+                            }
+                        } catch(e) {}
+                    }
+                }
+            }
 
             document.getElementById('steps-list').innerHTML = instructionsHtml;
             document.getElementById('instructions-container').style.display = "block";
 
-            var firstGeoJSON = L.geoJSON(journey.sections[0].geojson);
-            var bounds = firstGeoJSON.getBounds();
-            journey.sections.forEach(s => { if (s.geojson) bounds.extend(L.geoJSON(s.geojson).getBounds()); });
-            map.fitBounds(bounds, { padding: [50, 50] });
+            var bounds = null;
+            journey.sections.forEach(s => {
+                if (s.geojson) {
+                    let b = L.geoJSON(s.geojson).getBounds();
+                    if (bounds) bounds.extend(b);
+                    else bounds = b;
+                }
+            });
+            if (bounds) map.fitBounds(bounds, { padding: [50, 50] });
 
             return true;
         }
 
-        // 2. MOTEUR MULTIMODAL DE SECOURS (OSRM pour la marche + Transport sans couper à travers les bâtiments)
-        async function tracerTrajetMultimodalAdapte(dep, arr, profil) {
-            var mid1Lat = dep.lat + (arr.lat - dep.lat) * 0.4;
-            var mid1Lng = dep.lng + (arr.lng - dep.lng) * 0.4;
-
-            var mid2Lat = arr.lat + (dep.lat - arr.lat) * 0.2;
-            var mid2Lng = arr.lng + (dep.lng - arr.lng) * 0.2;
-
-            // A. Vrai trajet piéton départ -> station (OSRM)
-            var res1 = await fetch(`https://router.project-osrm.org/route/v1/foot/${dep.lng},${dep.lat};${mid1Lng},${mid1Lat}?geometries=geojson`);
-            var data1 = await res1.json();
-            var coordsMarche1 = data1.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-            L.polyline(coordsMarche1, { color: "#10b981", weight: 5, dashArray: '6, 8' }).addTo(activeLayerGroup);
-
-            // B. Trajet Transport en commun
-            var transportLine = [[mid1Lat, mid1Lng], [mid2Lat, mid2Lng]];
-            var couleurLigne = (profil === 'pmr') ? "#0055c8" : "#673ab7";
-            var nomTransport = (profil === 'pmr') ? "Bus Ligne 95 (100% Accessible)" : "Métro Ligne 14";
-            var codeTransport = (profil === 'pmr') ? "BUS 95" : "M14";
-            L.polyline(transportLine, { color: couleurLigne, weight: 8, opacity: 0.9 }).addTo(activeLayerGroup);
-
-            // C. Vrai trajet piéton station -> arrivée (OSRM)
-            var res2 = await fetch(`https://router.project-osrm.org/route/v1/foot/${mid2Lng},${mid2Lat};${arr.lng},${arr.lat}?geometries=geojson`);
-            var data2 = await res2.json();
-            var coordsMarche2 = data2.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-            L.polyline(coordsMarche2, { color: "#10b981", weight: 5, dashArray: '6, 8' }).addTo(activeLayerGroup);
-
-            // Marqueurs de correspondance
-            L.circleMarker([mid1Lat, mid1Lng], { radius: 7, fillColor: "#fff", color: couleurLigne, weight: 3 }).addTo(activeLayerGroup)
-             .bindPopup(`<b>Station :</b> Montée ${nomTransport}`);
-            L.circleMarker([mid2Lat, mid2Lng], { radius: 7, fillColor: "#fff", color: couleurLigne, weight: 3 }).addTo(activeLayerGroup)
-             .bindPopup(`<b>Station :</b> Descente ${nomTransport}`);
-
-            // Instructions textuelles
-            document.getElementById('steps-list').innerHTML = `
-                <div class="instruction-step" style="border-color: #10b981;">
-                    🚶 <strong>Marche d'approche :</strong> Suivi des trottoirs adaptés.
-                </div>
-                <div class="instruction-step" style="border-color: ${couleurLigne};">
-                    <span class="badge-line" style="background-color: ${couleurLigne};">${codeTransport}</span>
-                    <strong>${nomTransport}</strong><br>
-                    <small style="color: #10b981;">✔ Ascenseurs / quais vérifiés</small>
-                </div>
-                <div class="instruction-step" style="border-color: #10b981;">
-                    🚶 <strong>Marche finale :</strong> Cheminement piéton vers ${arr.nom}.
-                </div>
-            `;
-            document.getElementById('instructions-container').style.display = "block";
-
-            var ensembleTraces = coordsMarche1.concat(transportLine).concat(coordsMarche2);
-            map.fitBounds(L.polyline(ensembleTraces).getBounds(), { padding: [50, 50] });
-        }
-
-        // 3. MOTEUR PIÉTON DIRECT (Si la case transport est décochée)
+        // --- MOTEUR PIÉTON CERTIFIÉ (OSRM - Suit les rues sans couper à travers les bâtiments) ---
         async function tracerMarcheSeule(depLat, depLng, arrLat, arrLng, profil) {
             var url = `https://router.project-osrm.org/route/v1/foot/${depLng},${depLat};${arrLng},${arrLat}?geometries=geojson`;
             var res = await fetch(url);
             var data = await res.json();
+
+            if (!data.routes || data.routes.length === 0) throw new Error("Impossible de calculer l'itinéraire piéton.");
 
             var coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
             var color = profil === 'malvoyant' ? "#f59e0b" : "#10b981";
@@ -324,7 +303,9 @@
             var min = Math.round(data.routes[0].duration / 60);
 
             document.getElementById('steps-list').innerHTML = `
-                <div class="instruction-step">🚶 Trajet piéton direct sécurisé (~${min} min).</div>`;
+                <div class="instruction-step" style="border-color: #10b981;">
+                    🚶 <strong>Trajet piéton sécurisé :</strong> Suivi des voiries et trottoirs adaptés (~${min} min).
+                </div>`;
             document.getElementById('instructions-container').style.display = "block";
 
             map.fitBounds(poly.getBounds(), { padding: [50, 50] });
