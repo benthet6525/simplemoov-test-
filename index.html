@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SimpleMoov</title>
+    <title>SimpleMoov - Mobilité pour tous</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Lien vers vos polices ou icônes si nécessaire -->
 </head>
 <body>
 
@@ -14,47 +13,72 @@
         <div class="logo">
             <h1>SimpleMoov</h1>
         </div>
-       <nav>
-    <ul>
-        <li><a href="index.html">Accueil</a></li>
-        <li><a href="fonctionnalites.html">Fonctionnalités</a></li>
-        <li><a href="contact.html" class="btn-cta">Contact</a></li>
-        <li><a href="demo.html">Démo Live</a></li>
-    </ul>
-</nav>
+        <nav>
+            <ul>
+                <li><a href="index.html">Accueil</a></li>
+                <li><a href="fonctionnalites.html">Fonctionnalités</a></li>
+                <!-- AJOUT DU LIEN DÉMO DANS LE MENU -->
+                <li><a href="demo.html" style="color: var(--accent); font-weight: 600;">Démo Live</a></li>
+                <li><a href="contact.html" class="btn-cta">Contact</a></li>
+            </ul>
+        </nav>
     </header>
 
-    <!-- Section Héro / Accueil -->
+    <!-- Section Accueil / Hero -->
     <section id="accueil" class="hero">
         <div class="hero-content">
-            <h2>Simplifiez vos déplacements</h2>
-            <p>Une solution fluide et accessible pour optimiser vos trajets au quotidien.</p>
-            <a href="#features" class="btn-primary">Découvrir</a>
+            <h2>Simplifiez vos déplacements urbains</h2>
+            <p>Une application intelligente et inclusive pour des trajets réellement adaptés à chaque profil et besoin d'accessibilité.</p>
+            
+            <!-- BOUTONS D'ACTION PRINCIPAUX -->
+            <div style="display: flex; gap: 1rem; justify-content: center; align-items: center; flex-wrap: wrap;">
+                <a href="demo.html" class="btn-primary">Tester la Démo Live</a>
+                <a href="fonctionnalites.html" class="btn-primary" style="background: transparent; border: 1px solid var(--primary); box-shadow: none;">En savoir plus</a>
+            </div>
         </div>
     </section>
 
-    <!-- Section Fonctionnalités -->
-    <section id="features" class="features">
-        <h2>Pourquoi SimpleMoov ?</h2>
+    <!-- Section Le Projet / Objectifs -->
+    <section id="apropos" class="features">
+        <h2>Notre Mission</h2>
         <div class="features-grid">
             <div class="feature-card">
-                <h3>Rapide</h3>
-                <p>Un accès instantané à l'essentiel sans complication.</p>
+                <h3>Le Problème</h3>
+                <p>Escaliers non signalés, ascenseurs en panne ou trottoirs impraticables : les obstacles quotidiens sont nombreux.</p>
             </div>
             <div class="feature-card">
-                <h3>Intuitif</h3>
-                <p>Une interface pensée pour être prise en main immédiatement.</p>
+                <h3>Notre Solution</h3>
+                <p>Un guidage sur-mesure pour les personnes à mobilité réduite, malvoyantes, seniors ou en situation de handicap.</p>
             </div>
             <div class="feature-card">
-                <h3>Efficace</h3>
-                <p>Des outils ciblés pour aller droit au but.</p>
+                <h3>Valeur Unique</h3>
+                <p>Contrairement aux GPS classiques, l'application s'adapte automatiquement à votre profil pour éviter les imprévus.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section Rôle de l'IA -->
+    <section id="ia" class="features" style="background: rgba(30, 41, 59, 0.4);">
+        <h2>Propulsé par l'IA</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>Temps Réel</h3>
+                <p>Détection instantanée des obstacles, des travaux et des pannes d'ascenseurs sur votre parcours.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Profils Adaptés</h3>
+                <p>Recommandation d'itinéraires calculés précisément selon les capacités et contraintes de chaque utilisateur.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Sécurité & Données</h3>
+                <p>Un traitement des informations hautement sécurisé et strictement respectueux de la vie privée.</p>
             </div>
         </div>
     </section>
 
     <!-- Pied de page -->
-    <footer id="contact">
-        <p>&copy; 2026 SimpleMoov. Tous droits réservés.</p>
+    <footer>
+        <p>&copy; 2026 SimpleMoov (AccessiRoute). Tous droits réservés.</p>
     </footer>
 
 </body>
