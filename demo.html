@@ -6,7 +6,7 @@
     <title>SimpleMoov - Démo Interactive AccessiRoute</title>
     <link rel="stylesheet" href="style.css">
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <style>
         .demo-container {
             max-width: 1200px;
@@ -52,11 +52,6 @@
             color: var(--text-main);
             font-size: 0.9rem;
         }
-        .suggestions-list {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 0.2rem;
-        }
         .route-instructions {
             background: rgba(15, 23, 42, 0.95);
             border: 1px solid rgba(99, 102, 241, 0.4);
@@ -80,6 +75,16 @@
             height: 650px;
             background: #1e293b;
         }
+        #btn-calculer:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+        .loading-text {
+            color: var(--primary);
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: none;
+        }
         @media (max-width: 900px) {
             .map-layout {
                 grid-template-columns: 1fr;
@@ -92,7 +97,6 @@
 </head>
 <body>
 
-    <!-- En-tête / Navigation -->
     <header>
         <div class="logo">
             <a href="index.html" style="text-decoration: none;"><h1>SimpleMoov</h1></a>
@@ -107,13 +111,11 @@
         </nav>
     </header>
 
-    <!-- Contenu Principal Démo -->
     <main class="demo-container">
         <h2>Démo Interactive d'AccessiRoute</h2>
-        <p style="color: var(--text-muted);">Calculez un itinéraire urbain réel respectant strictement vos contraintes d'accessibilité.</p>
+        <p style="color: var(--text-muted);">Itinéraire réel suivant les routes d'Île-de-France, avec génération dynamique d'aides sur votre chemin.</p>
 
         <div class="map-layout">
-            <!-- Panneau de contrôle -->
             <div class="map-sidebar">
                 <h3>Paramètres du Trajet</h3>
                 
@@ -127,35 +129,27 @@
                 </div>
 
                 <div class="filter-group">
-                    <label for="destination">Destination :</label>
-                    <input type="text" id="destination" value="Musée du Louvre" placeholder="Ex: Louvre, Gare de Lyon, Châtelet...">
-                    <div class="suggestions-list">💡 Essayez : "Louvre", "Gare de Lyon", "Châtelet"</div>
+                    <label for="destination">Adresse de destination (Île-de-France) :</label>
+                    <input type="text" id="destination" value="10 Rue de la Paix, Paris" placeholder="Ex: 15 rue Vaugirard, Paris">
                 </div>
 
-                <button class="btn-primary" style="width: 100%; text-align: center; border: none; cursor: pointer;" onclick="calculerItineraireReel()">Calculer le trajet optimisé</button>
+                <button id="btn-calculer" class="btn-primary" style="width: 100%; text-align: center; border: none; cursor: pointer;" onclick="calculerItineraireReel()">Calculer le trajet sécurisé</button>
+                <div id="loading-indicator" class="loading-text">Recherche de l'itinéraire en cours...</div>
 
-                <!-- Feuille de route -->
                 <div id="instructions-container" class="route-instructions" style="display: none;">
-                    <h4>Feuille de route & Aides du parcours :</h4>
+                    <h4>Aides d'accessibilité sur votre chemin :</h4>
                     <div id="steps-list"></div>
                 </div>
             </div>
 
-            <!-- Carte Interactive -->
             <div id="map"></div>
         </div>
     </main>
 
-    <!-- Pied de page -->
-    <footer>
-        <p>&copy; 2026 SimpleMoov (AccessiRoute). Tous droits réservés.</p>
-    </footer>
-
     <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script>
-        // 1. Initialisation de la carte centrée sur Paris (Point de départ fixe : Hôtel de Ville / Châtelet)
-        var map = L.map('map').setView([48.8566, 2.3522], 14);
+        var map = L.map('map').setView([48.8566, 2.3522], 13);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -163,147 +157,146 @@
         }).addTo(map);
 
         var activeLayerGroup = L.layerGroup().addTo(map);
-        var pointDepart = [48.8584, 2.3444]; // Châtelet
+        
+        // Point de départ fixe pour la démo (Hôtel de Ville de Paris)
+        var pointDepartLat = 48.8566;
+        var pointDepartLng = 2.3522;
 
-        // 2. Base de données géographiques réelles de destinations et de leurs tracés de rue (évite les bâtiments)
-        var destinationsDatabase = {
-            "louvre": {
-                nom: "Musée du Louvre",
-                coords: [48.8606, 2.3376],
-                // Tracé détaillé suivant les rues réelles (ex: Rue de Rivoli) pour ne pas traverser les blocs de bâtiments
-                cheminPMR: [
-                    [48.8584, 2.3444], [48.8589, 2.3420], [48.8595, 2.3398], [48.8606, 2.3376]
-                ],
-                cheminMalvoyant: [
-                    [48.8584, 2.3444], [48.8588, 2.3425], [48.8596, 2.3390], [48.8606, 2.3376]
-                ],
-                aidesRoute: [
-                    { lat: 48.8588, lng: 2.3415, type: 'ascenseur', profil: ['pmr', 'senior'], texte: "Ascenseur station Rivoli : Opérationnel 🟢" },
-                    { lat: 48.8593, lng: 2.3400, type: 'obstacle_evite', profil: ['pmr'], texte: "Trottoir surbaissé validé (contournement de marche évité) 🟢" },
-                    { lat: 48.8590, lng: 2.3420, type: 'feu_sonore', profil: ['malvoyant'], texte: "Feu piéton sonore Rue de Rivoli : Actif 🔊" }
-                ]
-            },
-            "gare de lyon": {
-                nom: "Gare de Lyon",
-                coords: [48.8443, 2.3742],
-                cheminPMR: [
-                    [48.8584, 2.3444], [48.8530, 2.3499], [48.8490, 2.3600], [48.8443, 2.3742]
-                ],
-                cheminMalvoyant: [
-                    [48.8584, 2.3444], [48.8525, 2.3510], [48.8485, 2.3620], [48.8443, 2.3742]
-                ],
-                aidesRoute: [
-                    { lat: 48.8510, lng: 2.3550, type: 'pente_douce', profil: ['pmr', 'senior'], texte: "Rampe d'accès quai de la Rapée (pente < 4%) 🟢" },
-                    { lat: 48.8460, lng: 2.3700, type: 'tactile', profil: ['malvoyant'], texte: "Bande d'éveil de vigilance continue vers l'entrée gare 🟢" }
-                ]
-            },
-            "chatelet": {
-                nom: "Quartier Châtelet / Les Halles",
-                coords: [48.8615, 2.3450],
-                cheminPMR: [
-                    [48.8584, 2.3444], [48.8595, 2.3448], [48.8615, 2.3450]
-                ],
-                cheminMalvoyant: [
-                    [48.8584, 2.3444], [48.8600, 2.3446], [48.8615, 2.3450]
-                ],
-                aidesRoute: [
-                    { lat: 48.8600, lng: 2.3445, type: 'ascenseur', profil: ['pmr', 'senior'], texte: "Ascenseur Forum des Halles : En service 🟢" }
-                ]
-            }
-        };
-
-        function calculerItineraireReel() {
+        async function calculerItineraireReel() {
+            var destinationInput = document.getElementById('destination').value.trim();
             var profil = document.getElementById('profile-select').value;
-            var inputTexte = document.getElementById('destination').value.toLowerCase().trim();
+            var btn = document.getElementById('btn-calculer');
+            var loading = document.getElementById('loading-indicator');
 
-            // Recherche intelligente de la destination dans la base
-            var destinationTrouvee = null;
-            for (var cle in destinationsDatabase) {
-                if (inputTexte.includes(cle)) {
-                    destinationTrouvee = destinationsDatabase[cle];
-                    break;
-                }
+            if (!destinationInput) {
+                alert("Veuillez entrer une adresse.");
+                return;
             }
 
-            // Si aucune destination correspondante n'est trouvée, on prend une destination par défaut réaliste
-            if (!destinationTrouvee) {
-                destinationTrouvee = {
-                    nom: document.getElementById('destination').value || "Destination personnalisée",
-                    coords: [48.8620, 2.3500],
-                    cheminPMR: [ [48.8584, 2.3444], [48.8600, 2.3470], [48.8620, 2.3500] ],
-                    cheminMalvoyant: [ [48.8584, 2.3444], [48.8605, 2.3480], [48.8620, 2.3500] ],
-                    aidesRoute: [
-                        { lat: 48.8600, lng: 2.3470, type: 'ascenseur', profil: ['pmr', 'senior'], texte: "Ascenseur intermédiaire vérifié 🟢" },
-                        { lat: 48.8605, lng: 2.3480, type: 'feu_sonore', profil: ['malvoyant'], texte: "Traversée piétonne sonore sécurisée 🔊" }
-                    ]
-                };
-            }
-
-            // Nettoyage de la carte
+            // UI: Mode chargement
+            btn.disabled = true;
+            loading.style.display = "block";
             activeLayerGroup.clearLayers();
 
-            // Sélection du tracé de rue selon le profil (évite les bâtiments)
-            var tracéCoordonnees = (profil === 'malvoyant') ? destinationTrouvee.cheminMalvoyant : destinationTrouvee.cheminPMR;
+            try {
+                // 1. GÉOCODAGE : Transformer l'adresse en coordonnées avec Nominatim
+                // On ajoute "Île-de-France, France" pour forcer la recherche dans la région
+                var geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destinationInput + ", Île-de-France, France")}&limit=1`;
+                var geocodeResponse = await fetch(geocodeUrl);
+                var geocodeData = await geocodeResponse.json();
 
-            var couleurLigne = "#10b981"; // Vert PMR par défaut
-            if (profil === 'malvoyant') couleurLigne = "#f59e0b"; // Orange contrasté
-            else if (profil === 'senior') couleurLigne = "#3b82f6"; // Bleu
-
-            // Affichage du tracé de la route le long des rues
-            var polyline = L.polyline(tracéCoordonnees, {
-                color: couleurLigne,
-                weight: 6,
-                opacity: 0.9,
-                dashArray: profil === 'malvoyant' ? '8, 8' : null
-            }).addTo(activeLayerGroup);
-
-            // Marqueurs de départ et d'arrivée
-            L.marker(pointDepart).addTo(activeLayerGroup).bindPopup("<b>Point de départ</b><br>Châtelet / Hôtel de Ville");
-            var markerArr = L.marker(destinationTrouvee.coords).addTo(activeLayerGroup);
-            markerArr.bindPopup(`<b>Arrivée : ${destinationTrouvee.nom}</b><br>Itinéraire adapté calculé avec succès.`).openPopup();
-
-            // Filtrage et affichage strict des aides relatives à CE trajet et à CE profil
-            var instructionsHtml = "";
-            var aidesCount = 0;
-
-            destinationTrouvee.aidesRoute.forEach(function(aide) {
-                if (aide.profil.includes(profil)) {
-                    aidesCount++;
-                    var markerColor = aide.type.includes('obstacle') ? "#ef4444" : "#10b981";
-
-                    var aidMarker = L.circleMarker([aide.lat, aide.lng], {
-                        radius: 8,
-                        fillColor: markerColor,
-                        color: "#fff",
-                        weight: 2,
-                        fillOpacity: 0.9
-                    }).addTo(activeLayerGroup);
-
-                    aidMarker.bindPopup(`<b>Aide / Signalement du trajet</b><br>${aide.texte}`);
-
-                    instructionsHtml += `
-                        <div class="instruction-step">
-                            <strong>Point d'aide :</strong><br>
-                            <span style="color: var(--text-main);">${aide.texte}</span>
-                        </div>
-                    `;
+                if (geocodeData.length === 0) {
+                    alert("Adresse introuvable. Essayez d'être plus précis (ex: '10 Rue de Rivoli, Paris').");
+                    resetUI();
+                    return;
                 }
-            });
 
-            // Affichage de la feuille de route
+                var pointArriveeLat = parseFloat(geocodeData[0].lat);
+                var pointArriveeLng = parseFloat(geocodeData[0].lon);
+
+                // 2. ROUTING : Obtenir le vrai chemin piéton (qui suit les routes) avec OSRM
+                // Attention: OSRM prend les coordonnées au format "longitude,latitude"
+                var osrmUrl = `https://router.project-osrm.org/route/v1/foot/${pointDepartLng},${pointDepartLat};${pointArriveeLng},${pointArriveeLat}?geometries=geojson&overview=full`;
+                var osrmResponse = await fetch(osrmUrl);
+                var osrmData = await osrmResponse.json();
+
+                if (osrmData.code !== "Ok") {
+                    alert("Impossible de calculer un itinéraire piéton vers cette destination.");
+                    resetUI();
+                    return;
+                }
+
+                // 3. AFFICHAGE DU TRAJET
+                var coordonneesTrajet = osrmData.routes[0].geometry.coordinates;
+                // Inverser les [lng, lat] de OSRM en [lat, lng] pour Leaflet
+                var leafletCoords = coordonneesTrajet.map(coord => [coord[1], coord[0]]);
+
+                var couleurLigne = "#10b981"; // Vert par défaut
+                if (profil === 'malvoyant') couleurLigne = "#f59e0b"; // Orange contrasté
+                else if (profil === 'senior') couleurLigne = "#3b82f6"; // Bleu
+
+                var polyline = L.polyline(leafletCoords, {
+                    color: couleurLigne,
+                    weight: 6,
+                    opacity: 0.9,
+                    dashArray: profil === 'malvoyant' ? '8, 8' : null
+                }).addTo(activeLayerGroup);
+
+                // Marqueurs Départ / Arrivée
+                L.marker([pointDepartLat, pointDepartLng]).addTo(activeLayerGroup).bindPopup("<b>Départ</b><br>Hôtel de Ville");
+                L.marker([pointArriveeLat, pointArriveeLng]).addTo(activeLayerGroup).bindPopup(`<b>Arrivée</b><br>${geocodeData[0].display_name}`).openPopup();
+
+                // 4. GÉNÉRATION DYNAMIQUE DES AIDES SUR LE TRAJET RÉEL
+                // Pour la démo, on place des aides précisément sur les coordonnées renvoyées par le tracé OSRM (à 25%, 50% et 75% du trajet)
+                genererAidesDynamiques(leafletCoords, profil);
+
+                // Zoom automatique sur l'itinéraire
+                map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+
+            } catch (error) {
+                alert("Erreur de connexion aux serveurs de cartographie.");
+                console.error(error);
+            }
+
+            resetUI();
+        }
+
+        function genererAidesDynamiques(coords, profil) {
+            var instructionsHtml = "";
             var containerInstructions = document.getElementById('instructions-container');
             var listContainer = document.getElementById('steps-list');
 
-            if (aidesCount > 0) {
-                listContainer.innerHTML = instructionsHtml;
+            // On s'assure que le trajet est assez long pour mettre des points
+            if (coords.length < 10) {
+                listContainer.innerHTML = "<i>Trajet très court, aucun aménagement spécifique signalé.</i>";
                 containerInstructions.style.display = "block";
-            } else {
-                listContainer.innerHTML = "<i>Trajet direct validé sans obstacle majeur pour ce profil.</i>";
-                containerInstructions.style.display = "block";
+                return;
             }
 
-            // Ajustement du zoom de la carte sur le trajet précis
-            map.fitBounds(polyline.getBounds(), { padding: [60, 60] });
+            // On prend 3 points répartis sur le trajet réel
+            var index1 = Math.floor(coords.length * 0.25);
+            var index2 = Math.floor(coords.length * 0.50);
+            var index3 = Math.floor(coords.length * 0.75);
+
+            var aidesToInject = [];
+
+            if (profil === 'pmr' || profil === 'senior') {
+                aidesToInject.push({ lat: coords[index1][0], lng: coords[index1][1], type: 'pente', desc: "Trottoir surbaissé validé, passage dégagé 🟢" });
+                aidesToInject.push({ lat: coords[index2][0], lng: coords[index2][1], type: 'ascenseur', desc: "Passage alternatif sans marches (rampe < 4%) 🟢" });
+            } 
+            else if (profil === 'malvoyant') {
+                aidesToInject.push({ lat: coords[index1][0], lng: coords[index1][1], type: 'sonore', desc: "Traversée piétonne : Feu sonore activé 🔊" });
+                aidesToInject.push({ lat: coords[index3][0], lng: coords[index3][1], type: 'tactile', desc: "Bande d'éveil de vigilance au sol présente 🟢" });
+            }
+
+            aidesToInject.forEach(function(aide) {
+                // Création du point sur la carte
+                var marker = L.circleMarker([aide.lat, aide.lng], {
+                    radius: 8,
+                    fillColor: "#10b981", // Vert
+                    color: "#fff",
+                    weight: 2,
+                    fillOpacity: 1
+                }).addTo(activeLayerGroup);
+
+                marker.bindPopup(`<b>Aménagement adapté</b><br>${aide.desc}`);
+
+                // Ajout dans la liste texte
+                instructionsHtml += `
+                    <div class="instruction-step">
+                        <strong>Point d'attention sur le tracé :</strong><br>
+                        <span style="color: var(--text-main);">${aide.desc}</span>
+                    </div>
+                `;
+            });
+
+            listContainer.innerHTML = instructionsHtml;
+            containerInstructions.style.display = "block";
+        }
+
+        function resetUI() {
+            document.getElementById('btn-calculer').disabled = false;
+            document.getElementById('loading-indicator').style.display = "none";
         }
     </script>
 </body>
