@@ -8,136 +8,74 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <style>
-        .demo-container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            padding: 0 5%;
-        }
+        .demo-container { max-width: 1200px; margin: 2rem auto; padding: 0 5%; }
         .map-layout {
-            display: grid;
-            grid-template-columns: 360px 1fr;
-            gap: 2rem;
-            background: var(--card-bg);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            overflow: hidden;
-            margin-top: 1.5rem;
+            display: grid; grid-template-columns: 380px 1fr; gap: 2rem;
+            background: var(--card-bg); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; margin-top: 1.5rem;
         }
         .map-sidebar {
-            padding: 2rem;
-            background: rgba(15, 23, 42, 0.7);
-            border-right: 1px solid rgba(255, 255, 255, 0.05);
-            display: flex;
-            flex-direction: column;
-            gap: 1.2rem;
-            max-height: 650px;
-            overflow-y: auto;
+            padding: 2rem; background: rgba(15, 23, 42, 0.7); border-right: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex; flex-direction: column; gap: 1.2rem; max-height: 650px; overflow-y: auto;
         }
-        .map-sidebar h3 {
-            font-size: 1.2rem;
-            color: var(--text-main);
-        }
-        .filter-group label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-bottom: 0.4rem;
-        }
+        .filter-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
         .filter-group select, .filter-group input {
-            width: 100%;
-            padding: 0.7rem;
-            border-radius: 8px;
-            background: var(--bg-color);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-main);
-            font-size: 0.9rem;
+            width: 100%; padding: 0.7rem; border-radius: 8px; background: var(--bg-color);
+            border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main); font-size: 0.9rem;
+        }
+        .checkbox-group {
+            display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-main);
+            background: rgba(99, 102, 241, 0.1); padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.3);
         }
         .route-instructions {
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(99, 102, 241, 0.4);
-            border-radius: 10px;
-            padding: 1rem;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-        .route-instructions h4 {
-            color: var(--text-main);
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
+            background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 10px; padding: 1rem; font-size: 0.85rem; color: var(--text-muted);
         }
         .instruction-step {
-            margin-bottom: 0.6rem;
-            padding-left: 0.6rem;
-            border-left: 2px solid var(--primary);
+            margin-bottom: 0.8rem; padding-left: 0.8rem; border-left: 3px solid var(--primary);
         }
-        #map {
-            width: 100%;
-            height: 650px;
-            background: #1e293b;
+        .badge-metro {
+            display: inline-block; padding: 2px 6px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 0.75rem; margin-right: 5px;
         }
-        #btn-calculer:disabled {
-            background: #475569;
-            cursor: not-allowed;
-        }
-        .loading-text {
-            color: var(--primary);
-            font-size: 0.9rem;
-            font-weight: bold;
-            display: none;
-        }
-        @media (max-width: 900px) {
-            .map-layout {
-                grid-template-columns: 1fr;
-            }
-            #map {
-                height: 400px;
-            }
-        }
+        #map { width: 100%; height: 650px; background: #1e293b; }
+        .loading-text { color: var(--primary); font-size: 0.9rem; font-weight: bold; display: none; }
     </style>
 </head>
 <body>
 
     <header>
-        <div class="logo">
-            <a href="index.html" style="text-decoration: none;"><h1>SimpleMoov</h1></a>
-        </div>
-        <nav>
-            <ul>
-                <li><a href="index.html">Accueil</a></li>
-                <li><a href="fonctionnalites.html">Fonctionnalités</a></li>
-                <li><a href="demo.html" class="active" style="color: var(--text-main);">Démo Live</a></li>
-                <li><a href="contact.html" class="btn-cta">Contact</a></li>
-            </ul>
-        </nav>
+        <div class="logo"><h1>SimpleMoov</h1></div>
     </header>
 
     <main class="demo-container">
         <h2>Démo Interactive d'AccessiRoute</h2>
-        <p style="color: var(--text-muted);">Itinéraire réel suivant les routes d'Île-de-France, avec génération dynamique d'aides sur votre chemin.</p>
-
+        
         <div class="map-layout">
             <div class="map-sidebar">
                 <h3>Paramètres du Trajet</h3>
                 
                 <div class="filter-group">
-                    <label for="profile-select">Profil de Mobilité :</label>
+                    <label>Profil de Mobilité :</label>
                     <select id="profile-select">
-                        <option value="pmr">Fauteuil Roulant (PMR)</option>
+                        <option value="pmr">Fauteuil Roulant (PMR) - Ascenseurs obligatoires</option>
                         <option value="malvoyant">Déficience Visuelle</option>
-                        <option value="senior">Senior / Mobilité réduite</option>
                     </select>
                 </div>
 
                 <div class="filter-group">
-                    <label for="destination">Adresse de destination (Île-de-France) :</label>
-                    <input type="text" id="destination" value="10 Rue de la Paix, Paris" placeholder="Ex: 15 rue Vaugirard, Paris">
+                    <label>Destination (Île-de-France) :</label>
+                    <input type="text" id="destination" value="Musée du Louvre, Paris" placeholder="Ex: Gare de Lyon, Paris">
                 </div>
 
-                <button id="btn-calculer" class="btn-primary" style="width: 100%; text-align: center; border: none; cursor: pointer;" onclick="calculerItineraireReel()">Calculer le trajet sécurisé</button>
-                <div id="loading-indicator" class="loading-text">Recherche de l'itinéraire en cours...</div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="use-transit" checked>
+                    <label for="use-transit">Utiliser les Transports en Commun (IDFM)</label>
+                </div>
+
+                <button id="btn-calculer" class="btn-primary" style="width: 100%; padding: 10px; cursor: pointer;" onclick="calculerItineraire()">Calculer le trajet sécurisé</button>
+                <div id="loading-indicator" class="loading-text">Connexion aux serveurs IDFM en cours...</div>
 
                 <div id="instructions-container" class="route-instructions" style="display: none;">
-                    <h4>Aides d'accessibilité sur votre chemin :</h4>
+                    <h4 style="color: white; margin-bottom: 10px;">Feuille de route :</h4>
                     <div id="steps-list"></div>
                 </div>
             </div>
@@ -149,154 +87,151 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script>
+        // ==========================================
+        // ⚠️ COLONNE À REMPLIR : METTEZ VOTRE CLÉ ICI
+        // ==========================================
+        const IDFM_API_KEY = "zOTwROW5XQ4sWfbtreradCC4PGIFGcoV";
+        
         var map = L.map('map').setView([48.8566, 2.3522], 13);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         var activeLayerGroup = L.layerGroup().addTo(map);
         
-        // Point de départ fixe pour la démo (Hôtel de Ville de Paris)
-        var pointDepartLat = 48.8566;
+        var pointDepartLat = 48.8566; // Hôtel de ville
         var pointDepartLng = 2.3522;
 
-        async function calculerItineraireReel() {
+        async function calculerItineraire() {
             var destinationInput = document.getElementById('destination').value.trim();
             var profil = document.getElementById('profile-select').value;
-            var btn = document.getElementById('btn-calculer');
-            var loading = document.getElementById('loading-indicator');
+            var useTransit = document.getElementById('use-transit').checked;
+            
+            if (!destinationInput) return alert("Veuillez entrer une adresse.");
 
-            if (!destinationInput) {
-                alert("Veuillez entrer une adresse.");
-                return;
-            }
-
-            // UI: Mode chargement
-            btn.disabled = true;
-            loading.style.display = "block";
+            document.getElementById('btn-calculer').disabled = true;
+            document.getElementById('loading-indicator').style.display = "block";
             activeLayerGroup.clearLayers();
 
             try {
-                // 1. GÉOCODAGE : Transformer l'adresse en coordonnées avec Nominatim
-                // On ajoute "Île-de-France, France" pour forcer la recherche dans la région
-                var geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destinationInput + ", Île-de-France, France")}&limit=1`;
-                var geocodeResponse = await fetch(geocodeUrl);
-                var geocodeData = await geocodeResponse.json();
+                // 1. Transformer l'adresse en coordonnées GPS
+                var geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destinationInput + ", Île-de-France")}&limit=1`;
+                var geoRes = await fetch(geoUrl);
+                var geoData = await geoRes.json();
+                
+                if(geoData.length === 0) throw new Error("Adresse introuvable.");
+                var arriveeLat = parseFloat(geoData[0].lat);
+                var arriveeLng = parseFloat(geoData[0].lon);
 
-                if (geocodeData.length === 0) {
-                    alert("Adresse introuvable. Essayez d'être plus précis (ex: '10 Rue de Rivoli, Paris').");
-                    resetUI();
-                    return;
+                if (useTransit) {
+                    await tracerNavitia(pointDepartLat, pointDepartLng, arriveeLat, arriveeLng, profil);
+                } else {
+                    await tracerMarcheSeule(pointDepartLat, pointDepartLng, arriveeLat, arriveeLng, profil);
                 }
 
-                var pointArriveeLat = parseFloat(geocodeData[0].lat);
-                var pointArriveeLng = parseFloat(geocodeData[0].lon);
-
-                // 2. ROUTING : Obtenir le vrai chemin piéton (qui suit les routes) avec OSRM
-                // Attention: OSRM prend les coordonnées au format "longitude,latitude"
-                var osrmUrl = `https://router.project-osrm.org/route/v1/foot/${pointDepartLng},${pointDepartLat};${pointArriveeLng},${pointArriveeLat}?geometries=geojson&overview=full`;
-                var osrmResponse = await fetch(osrmUrl);
-                var osrmData = await osrmResponse.json();
-
-                if (osrmData.code !== "Ok") {
-                    alert("Impossible de calculer un itinéraire piéton vers cette destination.");
-                    resetUI();
-                    return;
-                }
-
-                // 3. AFFICHAGE DU TRAJET
-                var coordonneesTrajet = osrmData.routes[0].geometry.coordinates;
-                // Inverser les [lng, lat] de OSRM en [lat, lng] pour Leaflet
-                var leafletCoords = coordonneesTrajet.map(coord => [coord[1], coord[0]]);
-
-                var couleurLigne = "#10b981"; // Vert par défaut
-                if (profil === 'malvoyant') couleurLigne = "#f59e0b"; // Orange contrasté
-                else if (profil === 'senior') couleurLigne = "#3b82f6"; // Bleu
-
-                var polyline = L.polyline(leafletCoords, {
-                    color: couleurLigne,
-                    weight: 6,
-                    opacity: 0.9,
-                    dashArray: profil === 'malvoyant' ? '8, 8' : null
-                }).addTo(activeLayerGroup);
-
-                // Marqueurs Départ / Arrivée
-                L.marker([pointDepartLat, pointDepartLng]).addTo(activeLayerGroup).bindPopup("<b>Départ</b><br>Hôtel de Ville");
-                L.marker([pointArriveeLat, pointArriveeLng]).addTo(activeLayerGroup).bindPopup(`<b>Arrivée</b><br>${geocodeData[0].display_name}`).openPopup();
-
-                // 4. GÉNÉRATION DYNAMIQUE DES AIDES SUR LE TRAJET RÉEL
-                // Pour la démo, on place des aides précisément sur les coordonnées renvoyées par le tracé OSRM (à 25%, 50% et 75% du trajet)
-                genererAidesDynamiques(leafletCoords, profil);
-
-                // Zoom automatique sur l'itinéraire
-                map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+                L.marker([pointDepartLat, pointDepartLng]).addTo(activeLayerGroup).bindPopup("<b>Départ</b>");
+                L.marker([arriveeLat, arriveeLng]).addTo(activeLayerGroup).bindPopup("<b>Arrivée</b>");
 
             } catch (error) {
-                alert("Erreur de connexion aux serveurs de cartographie.");
+                alert("Erreur: " + error.message);
                 console.error(error);
             }
 
-            resetUI();
-        }
-
-        function genererAidesDynamiques(coords, profil) {
-            var instructionsHtml = "";
-            var containerInstructions = document.getElementById('instructions-container');
-            var listContainer = document.getElementById('steps-list');
-
-            // On s'assure que le trajet est assez long pour mettre des points
-            if (coords.length < 10) {
-                listContainer.innerHTML = "<i>Trajet très court, aucun aménagement spécifique signalé.</i>";
-                containerInstructions.style.display = "block";
-                return;
-            }
-
-            // On prend 3 points répartis sur le trajet réel
-            var index1 = Math.floor(coords.length * 0.25);
-            var index2 = Math.floor(coords.length * 0.50);
-            var index3 = Math.floor(coords.length * 0.75);
-
-            var aidesToInject = [];
-
-            if (profil === 'pmr' || profil === 'senior') {
-                aidesToInject.push({ lat: coords[index1][0], lng: coords[index1][1], type: 'pente', desc: "Trottoir surbaissé validé, passage dégagé 🟢" });
-                aidesToInject.push({ lat: coords[index2][0], lng: coords[index2][1], type: 'ascenseur', desc: "Passage alternatif sans marches (rampe < 4%) 🟢" });
-            } 
-            else if (profil === 'malvoyant') {
-                aidesToInject.push({ lat: coords[index1][0], lng: coords[index1][1], type: 'sonore', desc: "Traversée piétonne : Feu sonore activé 🔊" });
-                aidesToInject.push({ lat: coords[index3][0], lng: coords[index3][1], type: 'tactile', desc: "Bande d'éveil de vigilance au sol présente 🟢" });
-            }
-
-            aidesToInject.forEach(function(aide) {
-                // Création du point sur la carte
-                var marker = L.circleMarker([aide.lat, aide.lng], {
-                    radius: 8,
-                    fillColor: "#10b981", // Vert
-                    color: "#fff",
-                    weight: 2,
-                    fillOpacity: 1
-                }).addTo(activeLayerGroup);
-
-                marker.bindPopup(`<b>Aménagement adapté</b><br>${aide.desc}`);
-
-                // Ajout dans la liste texte
-                instructionsHtml += `
-                    <div class="instruction-step">
-                        <strong>Point d'attention sur le tracé :</strong><br>
-                        <span style="color: var(--text-main);">${aide.desc}</span>
-                    </div>
-                `;
-            });
-
-            listContainer.innerHTML = instructionsHtml;
-            containerInstructions.style.display = "block";
-        }
-
-        function resetUI() {
             document.getElementById('btn-calculer').disabled = false;
             document.getElementById('loading-indicator').style.display = "none";
+        }
+
+        // ==========================================
+        // MOTEUR MULTIMODAL (IDFM / NAVITIA)
+        // ==========================================
+        async function tracerNavitia(depLat, depLng, arrLat, arrLng, profil) {
+            // Paramètre magique pour les fauteuils roulants !
+            var wheelchairParam = profil === 'pmr' ? "&wheelchair=true" : "";
+            
+            // Format requis par Navitia : longitude;latitude
+            var url = `https://prim.iledefrance-mobilites.fr/marketplace/navitia/v1/coverage/fr-idf/journeys?from=${depLng};${depLat}&to=${arrLng};${arrLat}${wheelchairParam}&forbidden_uris[]=physical_mode:Bicycle`;
+
+            var response = await fetch(url, {
+                headers: { "apikey": IDFM_API_KEY }
+            });
+            
+            if (response.status === 401) throw new Error("Clé API IDFM invalide ou manquante.");
+            
+            var data = await response.json();
+            if (!data.journeys || data.journeys.length === 0) {
+                throw new Error("Aucun trajet en transport trouvé (ou aucun trajet accessible en fauteuil).");
+            }
+
+            var journey = data.journeys[0];
+            var instructionsHtml = "";
+            var stepsList = document.getElementById('steps-list');
+
+            // Dessiner chaque tronçon du trajet
+            journey.sections.forEach(section => {
+                if (!section.geojson) return;
+
+                // Par défaut : style pour la marche
+                var color = profil === 'malvoyant' ? "#f59e0b" : "#10b981"; 
+                var weight = 5;
+                var dash = '6, 8'; 
+
+                // Si c'est un transport en commun, on récupère sa vraie couleur (Ligne 1 = Jaune, RER A = Rouge, etc.)
+                if (section.type === "public_transport" && section.display_informations) {
+                    color = "#" + section.display_informations.color;
+                    weight = 8;
+                    dash = null;
+
+                    // Créer l'instruction textuelle
+                    var codeLigne = section.display_informations.code;
+                    var nomLigne = section.display_informations.network;
+                    var direction = section.display_informations.direction;
+                    
+                    instructionsHtml += `
+                        <div class="instruction-step" style="border-color: ${color};">
+                            <span class="badge-metro" style="background-color: ${color};">${codeLigne}</span>
+                            <strong>${nomLigne}</strong> vers ${direction}<br>
+                            <small>De <b>${section.from.name}</b> à <b>${section.to.name}</b></small>
+                            ${profil === 'pmr' ? "<br><small style='color:#10b981;'>✓ Stations accessibles vérifiées</small>" : ""}
+                        </div>`;
+                } 
+                else if (section.type === "street_network") {
+                    var distance = Math.round(section.duration / 60);
+                    instructionsHtml += `
+                        <div class="instruction-step" style="border-color: ${color};">
+                            🚶 Marcher environ ${distance} min
+                        </div>`;
+                }
+
+                // Affichage direct du GeoJSON de Navitia sur Leaflet !
+                L.geoJSON(section.geojson, {
+                    style: { color: color, weight: weight, dashArray: dash, opacity: 0.9 }
+                }).addTo(activeLayerGroup);
+            });
+
+            stepsList.innerHTML = instructionsHtml;
+            document.getElementById('instructions-container').style.display = "block";
+            
+            // Zoomer sur le trajet
+            var bounds = L.geoJSON(journey.sections[0].geojson).getBounds();
+            journey.sections.forEach(s => { if(s.geojson) bounds.extend(L.geoJSON(s.geojson).getBounds()); });
+            map.fitBounds(bounds, { padding: [40, 40] });
+        }
+
+        // ==========================================
+        // MOTEUR PIÉTON (OSRM - Sans transports)
+        // ==========================================
+        async function tracerMarcheSeule(depLat, depLng, arrLat, arrLng, profil) {
+            var url = `https://router.project-osrm.org/route/v1/foot/${depLng},${depLat};${arrLng},${arrLat}?geometries=geojson`;
+            var res = await fetch(url);
+            var data = await res.json();
+            
+            var coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]); // Inversion Lng/Lat
+            
+            var color = profil === 'malvoyant' ? "#f59e0b" : "#10b981";
+            var poly = L.polyline(coords, { color: color, weight: 6, dashArray: profil === 'malvoyant'?'8,8':null }).addTo(activeLayerGroup);
+            
+            document.getElementById('steps-list').innerHTML = `
+                <div class="instruction-step">🚶 Trajet piéton direct sécurisé calculé.</div>`;
+            document.getElementById('instructions-container').style.display = "block";
+            
+            map.fitBounds(poly.getBounds(), { padding: [40, 40] });
         }
     </script>
 </body>
