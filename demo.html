@@ -36,7 +36,7 @@
         .badge-metro {
             display: inline-block; padding: 2px 6px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 0.75rem; margin-right: 5px;
         }
-        #map { width: 100%; height: 680px; background: #1e293b; }
+        #map { width: 100%; height: 680px; background: #1e293b; min-height: 400px; }
         .loading-text { color: var(--primary); font-size: 0.9rem; font-weight: bold; display: none; }
     </style>
 </head>
@@ -72,13 +72,11 @@
                     </select>
                 </div>
 
-                <!-- NOUVEAU : Champ Point de départ -->
                 <div class="filter-group">
                     <label for="departure">Point de départ (Île-de-France) :</label>
                     <input type="text" id="departure" value="Gare Montparnasse, Paris" placeholder="Ex: Gare de Lyon, 12 rue de Rivoli...">
                 </div>
 
-                <!-- Champ Destination -->
                 <div class="filter-group">
                     <label for="destination">Point d'arrivée (Île-de-France) :</label>
                     <input type="text" id="destination" value="Musée du Louvre, Paris" placeholder="Ex: Tour Eiffel, Châtelet...">
@@ -98,6 +96,7 @@
                 </div>
             </div>
 
+            <!-- Conteneur de la Carte -->
             <div id="map"></div>
         </div>
     </main>
@@ -115,7 +114,6 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         var activeLayerGroup = L.layerGroup().addTo(map);
 
-        // Fonction auxiliaire de géocodage d'une adresse via Nominatim
         async function geocoderAdresse(adresseTexte) {
             var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Île-de-France, France")}&limit=1`;
             var res = await fetch(url);
@@ -146,18 +144,20 @@
             activeLayerGroup.clearLayers();
 
             try {
-                // 1. Géocodage séquentiel du départ et de l'arrivée
                 var pointDepart = await geocoderAdresse(departureInput);
                 var pointArrivee = await geocoderAdresse(destinationInput);
 
-                // 2. Calcul du trajet (Transports ou Marche seule)
                 if (useTransit) {
-                    await tracerNavitia(pointDepart.lat, pointDepart.lng, pointArrivee.lat, pointArrivee.lng, profil);
+                    try {
+                        await tracerNavitia(pointDepart.lat, pointDepart.lng, pointArrivee.lat, pointArrivee.lng, profil);
+                    } catch (idfmErr) {
+                        console.warn("API IDFM indisponible, bascule automatique sur le tracé piéton :", idfmErr);
+                        await tracerMarcheSeule(pointDepart.lat, pointDepart.lng, pointArrivee.lat, pointArrivee.lng, profil);
+                    }
                 } else {
                     await tracerMarcheSeule(pointDepart.lat, pointDepart.lng, pointArrivee.lat, pointArrivee.lng, profil);
                 }
 
-                // 3. Pose des marqueurs personnalisés Départ & Arrivée
                 L.marker([pointDepart.lat, pointDepart.lng]).addTo(activeLayerGroup)
                  .bindPopup(`<b>Départ :</b><br>${pointDepart.nomComplet}`);
                  
@@ -173,110 +173,27 @@
             document.getElementById('loading-indicator').style.display = "none";
         }
 
-     // --- CALCUL VIA NAVITIA (Transports IDFM) ---
-async function tracerNavitia(depLat, depLng, arrLat, arrLng, profil) {
-    var wheelchairParam = profil === 'pmr' ? "&wheelchair=true" : "";
-    var rawUrl = `https://prim.iledefrance-mobilites.fr/marketplace/navitia/v1/coverage/fr-idf/journeys?from=${depLng};${depLat}&to=${arrLng};${arrLat}${wheelchairParam}&forbidden_uris[]=physical_mode:Bicycle`;
+        async function tracerNavitia(depLat, depLng, arrLat, arrLng, profil) {
+            var wheelchairParam = profil === 'pmr' ? "&wheelchair=true" : "";
+            var rawUrl = `https://prim.iledefrance-mobilites.fr/marketplace/navitia/v1/coverage/fr-idf/journeys?from=${depLng};${depLat}&to=${arrLng};${arrLat}${wheelchairParam}&forbidden_uris[]=physical_mode:Bicycle`;
 
-    var response;
-    try {
-        // Tentative d'appel direct avec l'en-tête officiel
-        response = await fetch(rawUrl, {
-            method: "GET",
-            headers: { 
-                "apiKey": IDFM_API_KEY,
-                "apikey": IDFM_API_KEY 
-            }
-        });
-    } catch (e) {
-        // Repli via proxy si la sécurité du navigateur bloque le fichier local
-        var proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(rawUrl);
-        response = await fetch(proxyUrl, {
-            method: "GET",
-            headers: { 
-                "apiKey": IDFM_API_KEY,
-                "apikey": IDFM_API_KEY 
-            }
-        });
-    }
-
-    if (!response.ok) {
-        var errDetails = await response.text();
-        console.error("Détails erreur IDFM :", response.status, errDetails);
-        if (response.status === 401 || response.status === 403) {
-            throw new Error("Clé API invalide ou non activée pour le produit « API Itinéraires » sur PRIM.");
-        }
-        throw new Error(`Erreur API IDFM (Code HTTP ${response.status}). Ouvrez la console F12 pour plus de détails.`);
-    }
-
-    var data = await response.json();
-    if (!data.journeys || data.journeys.length === 0) {
-        throw new Error("Aucun itinéraire en transport trouvé pour ces adresses avec ce profil.");
-    }
-
-    var journey = data.journeys[0];
-    var instructionsHtml = "";
-    var stepsList = document.getElementById('steps-list');
-
-    journey.sections.forEach(section => {
-        if (!section.geojson) return;
-
-        var color = profil === 'malvoyant' ? "#f59e0b" : "#10b981"; 
-        var weight = 5;
-        var dash = '6, 8'; 
-
-        if (section.type === "public_transport" && section.display_informations) {
-            color = "#" + section.display_informations.color;
-            weight = 8;
-            dash = null;
-
-            var codeLigne = section.display_informations.code;
-            var nomLigne = section.display_informations.network;
-            var direction = section.display_informations.direction;
-            
-            instructionsHtml += `
-                <div class="instruction-step" style="border-color: ${color};">
-                    <span class="badge-metro" style="background-color: ${color};">${codeLigne}</span>
-                    <strong>${nomLigne}</strong> direction ${direction}<br>
-                    <small>De <b>${section.from.name}</b> à <b>${section.to.name}</b></small>
-                    ${profil === 'pmr' ? "<br><small style='color:#10b981;'>✓ Tracé accessible PMR</small>" : ""}
-                </div>`;
-        } 
-        else if (section.type === "street_network") {
-            var minutes = Math.ceil(section.duration / 60);
-            instructionsHtml += `
-                <div class="instruction-step" style="border-color: ${color};">
-                    🚶 Marcher environ ${minutes} min
-                </div>`;
-        }
-
-        L.geoJSON(section.geojson, {
-            style: { color: color, weight: weight, dashArray: dash, opacity: 0.9 }
-        }).addTo(activeLayerGroup);
-    });
-
-    stepsList.innerHTML = instructionsHtml;
-    document.getElementById('instructions-container').style.display = "block";
-
-    var firstGeoJSON = L.geoJSON(journey.sections[0].geojson);
-    var bounds = firstGeoJSON.getBounds();
-    journey.sections.forEach(s => { 
-        if (s.geojson) bounds.extend(L.geoJSON(s.geojson).getBounds()); 
-    });
-    map.fitBounds(bounds, { padding: [50, 50] });
-}
-            // Utilisation du proxy CORS pour éviter les blocages du navigateur
             var proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(rawUrl);
 
             var response = await fetch(proxyUrl, {
-                headers: { "apikey": IDFM_API_KEY }
+                method: "GET",
+                headers: { 
+                    "apiKey": IDFM_API_KEY,
+                    "apikey": IDFM_API_KEY 
+                }
             });
 
-            if (!response.ok) throw new Error("Erreur de réponse de l'API IDFM / Navitia.");
+            if (!response.ok) {
+                throw new Error(`Erreur API IDFM (HTTP ${response.status})`);
+            }
 
             var data = await response.json();
             if (!data.journeys || data.journeys.length === 0) {
-                throw new Error("Aucun itinéraire en transport trouvé pour ces adresses avec ce profil.");
+                throw new Error("Aucun itinéraire trouvé.");
             }
 
             var journey = data.journeys[0];
@@ -323,7 +240,6 @@ async function tracerNavitia(depLat, depLng, arrLat, arrLng, profil) {
             stepsList.innerHTML = instructionsHtml;
             document.getElementById('instructions-container').style.display = "block";
 
-            // Calcul de l'emprise visuelle (bounds) pour cadrer la carte sur tout le trajet
             var firstGeoJSON = L.geoJSON(journey.sections[0].geojson);
             var bounds = firstGeoJSON.getBounds();
             journey.sections.forEach(s => { 
@@ -332,7 +248,6 @@ async function tracerNavitia(depLat, depLng, arrLat, arrLng, profil) {
             map.fitBounds(bounds, { padding: [50, 50] });
         }
 
-        // --- CALCUL VIA OSRM (Marche seule) ---
         async function tracerMarcheSeule(depLat, depLng, arrLat, arrLng, profil) {
             var url = `https://router.project-osrm.org/route/v1/foot/${depLng},${depLat};${arrLng},${arrLat}?geometries=geojson`;
             var res = await fetch(url);
