@@ -126,44 +126,92 @@
         <p>&copy; 2026 SimpleMoov (AccessiRoute). Tous droits réservés.</p>
     </footer>
 
-    <!-- Intégration de Leaflet JS -->
+  <!-- Intégration de Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
-        // Initialisation de la carte centrée sur une ville exemple (ex: Paris)
+        // 1. Initialisation de la carte centrée sur Paris
         var map = L.map('map').setView([48.8566, 2.3522], 14);
 
-        // Ajout du fond de plan cartographique OpenStreetMap stylisé
+        // Ajout du fond de plan OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Ajout de repères (Markers) simulant des données réelles d'accessibilité
-        var markerAscenseur = L.circleMarker([48.8584, 2.3444], {
-            radius: 8,
-            fillColor: "#10b981",
-            color: "#fff",
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.9
-        }).addTo(map).bindPopup("<b>Ascenseur Gare</b><br>Statut : Opérationnel 🟢");
+        // Groupe de calques pour gérer l'affichage dynamique des marqueurs et des tracés
+        var routeLayerGroup = L.layerGroup().addTo(map);
 
-        var markerPanne = L.circleMarker([48.8530, 2.3499], {
-            radius: 8,
-            fillColor: "#ef4444",
-            color: "#fff",
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.9
-        }).addTo(map).bindPopup("<b>Escalier Métro</b><br>Statut : Ascenseur en panne 🔴<br>Alternative conseillée : Contournement à 50m.");
+        // 2. Base de données simulée des signalements réels d'accessibilité (Aides & Obstacles)
+        var signalementsBase = [
+            { lat: 48.8584, lng: 2.3444, type: 'ascenseur', titre: "Ascenseur Gare Châtelet", statut: "Opérationnel 🟢", desc: "Accès PMR fluide et testé." },
+            { lat: 48.8530, lng: 2.3499, type: 'obstacle', titre: "Escalier Métro Saint-Michel", statut: "Ascenseur en panne 🔴", desc: "Alternative conseillée : Contournement à 50m par rampe." },
+            { lat: 48.8600, lng: 2.3350, type: 'ascenseur', titre: "Passerelle Musée du Louvre", statut: "Pente douce 🟢", desc: "Idéal fauteuils roulants et poussettes." },
+            { lat: 48.8510, lng: 2.3600, type: 'obstacle', titre: "Travaux Trottoir Rue de Lyon", statut: "Passage obstrué 🔴", desc: "Trottoir étroit, privilégier le côté opposé." }
+        ];
 
-        // Fonction simulée de calcul d'itinéraire
+        // Fonction pour afficher les repères sur la carte au chargement
+        function afficherSignalements() {
+            signalementsBase.forEach(function(item) {
+                var couleur = item.type === 'ascenseur' ? "#10b981" : "#ef4444";
+                var marker = L.circleMarker([item.lat, item.lng], {
+                    radius: 9,
+                    fillColor: couleur,
+                    color: "#fff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                });
+                marker.bindPopup(`<b>${item.titre}</b><br>Statut : ${item.statut}<br><span style="font-size:0.85rem; color:#555;">${item.desc}</span>`);
+                routeLayerGroup.addLayer(marker);
+            });
+        }
+
+        // Affichage initial des repères
+        afficherSignalements();
+
+        // 3. Fonction intelligente de calcul d'itinéraire réel sur la carte
         function calculerItineraire() {
-            alert("Calcul de l'itinéraire adapté en cours via l'IA AccessiRoute... Trajet sécurisé généré !");
-            // Centrer la carte ou tracer un polygone d'exemple si besoin
-            map.setView([48.8550, 2.3470], 15);
+            var destinationInput = document.getElementById('destination').value;
+            var profil = document.getElementById('profile-select').value;
+
+            if (!destinationInput.trim()) {
+                alert("Veuillez entrer une destination valide.");
+                return;
+            }
+
+            // Nettoyage des anciens tracés de trajet
+            routeLayerGroup.clearLayers();
+            // On réaffiche les signalements d'accessibilité
+            afficherSignalements();
+
+            // Simulation d'un point de départ (ex: position actuelle fixe) et de coordonnées de destination
+            var pointDepart = [48.8566, 2.3522]; // Centre (Châtelet / Hôtel de Ville)
+            var pointArrivee = [48.8650, 2.3800]; // Destination simulée un peu plus loin
+
+            // Adaptation du trajet selon le profil sélectionné
+            var couleurTrajet = "#6366f1"; // Couleur par défaut (Violet)
+            if (profil === 'pmr') couleurTrajet = "#10b981"; // Vert pour PMR (sécurisé)
+            else if (profil === 'malvoyant') couleurTrajet = "#f59e0b"; // Orange pour malvoyant
+
+            // Création d'une ligne d'itinéraire simulée (polyline) entre le départ et l'arrivée
+            var latlngs = [
+                pointDepart,
+                [48.8610, 2.3600], // Point intermédiaire du trajet évitant les pannes
+                pointArrivee
+            ];
+
+            var polyline = L.polyline(latlngs, {
+                color: couleurTrajet,
+                weight: 6,
+                opacity: 0.85,
+                dashArray: profil === 'malvoyant' ? '10, 10' : null // Effet visuel pointillé pour les profils malvoyants
+            }).addTo(routeLayerGroup);
+
+            // Ajout d'un marqueur de destination
+            var markerDest = L.marker(pointArrivee).addTo(routeLayerGroup);
+            markerDest.bindPopup(`<b>Destination : ${destinationInput}</b><br>Profil : ${profil.toUpperCase()}<br><i>Trajet optimisé et sécurisé généré avec succès !</i>`).openPopup();
+
+            // Ajuster la vue de la carte pour englober tout le trajet
+            map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
         }
     </script>
-
-</body>
-</html>
