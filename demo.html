@@ -33,11 +33,12 @@
         .demo-container { max-width: 1200px; margin: 2rem auto; padding: 0 5%; }
         .map-layout {
             display: grid; grid-template-columns: 380px 1fr; gap: 2rem;
-            background: var(--card-bg); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; margin-top: 1.5rem;
+            background: var(--card-bg); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1.5rem;
         }
         .map-sidebar {
             padding: 2rem; background: rgba(15, 23, 42, 0.7); border-right: 1px solid rgba(255, 255, 255, 0.05);
             display: flex; flex-direction: column; gap: 1.2rem; max-height: 680px; overflow-y: auto;
+            border-radius: 16px 0 0 16px;
         }
         .filter-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
         .filter-group select, .filter-group input {
@@ -58,9 +59,15 @@
         .badge-line {
             display: inline-block; padding: 2px 7px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 0.8rem; margin-right: 6px;
         }
-        #map { width: 100%; height: 680px; background: #1e293b; min-height: 400px; }
+        #map { width: 100%; height: 680px; background: #1e293b; border-radius: 0 16px 16px 0; }
         .loading-text { color: var(--primary); font-size: 0.9rem; font-weight: bold; display: none; }
         footer { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
+
+        @media (max-width: 900px) {
+            .map-layout { grid-template-columns: 1fr; }
+            #map { height: 450px; border-radius: 0 0 16px 16px; }
+            .map-sidebar { border-radius: 16px 16px 0 0; }
+        }
     </style>
 </head>
 <body>
@@ -133,8 +140,15 @@
     <script>
         const IDFM_API_KEY = "zOTwROW5XQ4sWfbtreradCC4PGIFGcoV";
         
+        // Initialisation de la carte Leaflet
         var map = L.map('map').setView([48.8566, 2.3522], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}   /{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        
+        // URL propre sans espaces parasites
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
         var activeLayerGroup = L.layerGroup().addTo(map);
 
         async function geocoderAdresse(adresseTexte) {
@@ -153,7 +167,7 @@
             var departureInput = document.getElementById('departure').value.trim();
             var destinationInput = document.getElementById('destination').value.trim();
             var profil = document.getElementById('profile-select').value;
-            var useTransit = document.getElementById('use-transit').checked; // Correction ici
+            var useTransit = document.getElementById('use-transit').checked;
             
             if (!departureInput || !destinationInput) return alert("Veuillez remplir le point de départ et l'arrivée.");
 
