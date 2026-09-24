@@ -148,9 +148,13 @@
             // Format requis par Navitia : longitude;latitude
             var url = `https://prim.iledefrance-mobilites.fr/marketplace/navitia/v1/coverage/fr-idf/journeys?from=${depLng};${depLat}&to=${arrLng};${arrLat}${wheelchairParam}&forbidden_uris[]=physical_mode:Bicycle`;
 
-            var response = await fetch(url, {
-                headers: { "apikey": IDFM_API_KEY }
-            });
+          // Utilisation d'un proxy gratuit pour contourner le blocage CORS
+var proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(url);
+
+var response = await fetch(proxyUrl, {
+    headers: { "apikey": IDFM_API_KEY }
+});
+       
             
             if (response.status === 401) throw new Error("Clé API IDFM invalide ou manquante.");
             
