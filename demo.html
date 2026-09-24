@@ -111,7 +111,7 @@
                 </div>
 
                 <button id="btn-calculer" class="btn-primary" style="width: 100%; padding: 10px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold;" onclick="calculerItineraire()">Calculer le trajet sécurisé</button>
-                <div id="loading-indicator" class="loading-text">Interrogation des réseaux IDFM & OSRM en cours...</div>
+                <div id="loading-indicator" class="loading-text">Recherche d'itinéraires en cours...</div>
 
                 <div id="instructions-container" class="route-instructions" style="display: none;">
                     <h4 style="color: white; margin-bottom: 10px;">Détails du Trajet Multimodal :</h4>
@@ -134,7 +134,7 @@
         const IDFM_API_KEY = "zOTwROW5XQ4sWfbtreradCC4PGIFGcoV";
         
         var map = L.map('map').setView([48.8566, 2.3522], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}   /{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         var activeLayerGroup = L.layerGroup().addTo(map);
 
         async function geocoderAdresse(adresseTexte) {
@@ -153,7 +153,7 @@
             var departureInput = document.getElementById('departure').value.trim();
             var destinationInput = document.getElementById('destination').value.trim();
             var profil = document.getElementById('profile-select').value;
-            var useTransit = document.getElementById('use-transit'].checked;
+            var useTransit = document.getElementById('use-transit').checked; // Correction ici
             
             if (!departureInput || !destinationInput) return alert("Veuillez remplir le point de départ et l'arrivée.");
 
@@ -190,32 +190,21 @@
             document.getElementById('loading-indicator').style.display = "none";
         }
 
-        // Fonction robuste pour interroger Navitia via plusieurs proxys successifs
         async function fetchNavitia(url) {
             var headers = { "apiKey": IDFM_API_KEY, "apikey": IDFM_API_KEY };
-            
-            // 1. Essai direct
             try {
                 let res = await fetch(url, { headers });
                 if (res.ok) return await res.json();
             } catch(e) {}
 
-            // 2. Essai corsproxy.io
             try {
                 let res = await fetch("https://corsproxy.io/?" + encodeURIComponent(url), { headers });
-                if (res.ok) return await res.json();
-            } catch(e) {}
-
-            // 3. Essai allorigins
-            try {
-                let res = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
                 if (res.ok) return await res.json();
             } catch(e) {}
 
             throw new Error("Impossible de joindre l'API IDFM.");
         }
 
-        // --- TRACÉ VIA L'API OFFICIELLE IDFM (NAVITIA) ---
         async function tracerNavitia(depLat, depLng, arrLat, arrLng, profil) {
             var wheelchairParam = profil === 'pmr' ? "&wheelchair=true" : "";
             var rawUrl = `https://prim.iledefrance-mobilites.fr/marketplace/navitia/v1/coverage/fr-idf/journeys?from=${depLng};${depLat}&to=${arrLng};${arrLat}${wheelchairParam}`;
@@ -259,7 +248,6 @@
                             style: { color: "#10b981", weight: 5, dashArray: '6, 8', opacity: 0.9 }
                         }).addTo(activeLayerGroup);
                     } else if (section.from && section.to && section.from.coord && section.to.coord) {
-                        // Utilisation d'OSRM pour coller parfaitement aux rues si le geojson manque
                         try {
                             let osrmRes = await fetch(`https://router.project-osrm.org/route/v1/foot/${section.from.coord.lon},${section.from.coord.lat};${section.to.coord.lon},${section.to.coord.lat}?geometries=geojson`);
                             let osrmData = await osrmRes.json();
@@ -288,7 +276,6 @@
             return true;
         }
 
-        // --- MOTEUR PIÉTON CERTIFIÉ (OSRM - Suit les rues sans couper à travers les bâtiments) ---
         async function tracerMarcheSeule(depLat, depLng, arrLat, arrLng, profil) {
             var url = `https://router.project-osrm.org/route/v1/foot/${depLng},${depLat};${arrLng},${arrLat}?geometries=geojson`;
             var res = await fetch(url);
