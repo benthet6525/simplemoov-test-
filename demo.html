@@ -148,28 +148,41 @@
 
         var activeLayerGroup = L.layerGroup().addTo(map);
 
-        async function fetchIDFM(url) {
-            var headers = { "Authorization": "apikey " + IDFM_API_KEY, "apiKey": IDFM_API_KEY };
-            
+        // Appel robuste de l'API IDFM contournant les blocages CORS du navigateur
+        async function fetchIDFM(baseUrl) {
+            var sep = baseUrl.includes('?') ? '&' : '?';
+            var urlWithKey = baseUrl + sep + "apiKey=" + IDFM_API_KEY;
+
+            // 1. Essai direct avec paramètre d'URL (évite le blocage CORS des en-têtes)
             try {
-                let res = await fetch(url, { headers });
+                let res = await fetch(urlWithKey);
                 if (res.ok) return await res.json();
             } catch(e) {}
 
+            // 2. Essai direct avec en-têtes HTTP
             try {
-                let res = await fetch("https://corsproxy.io/?" + encodeURIComponent(url), { headers });
+                let res = await fetch(baseUrl, {
+                    headers: { "Authorization": "apikey " + IDFM_API_KEY, "apiKey": IDFM_API_KEY }
+                });
                 if (res.ok) return await res.json();
             } catch(e) {}
 
+            // 3. Secours via proxy CORS
             try {
-                let res = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+                let res = await fetch("https://corsproxy.io/?" + encodeURIComponent(urlWithKey));
+                if (res.ok) return await res.json();
+            } catch(e) {}
+
+            // 4. Secours AllOrigins
+            try {
+                let res = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(urlWithKey));
                 if (res.ok) return await res.json();
             } catch(e) {}
 
             throw new Error("Impossible de joindre l'API IDFM.");
         }
 
-        // Géocodeur hybride : IDFM Places (Gares/Metros/POIs) + BAN Gouvernement (Adresses de rue)
+        // Géocodeur hybride : IDFM Places (Gares/Métros/POIs) + BAN Gouvernement (Adresses de rue)
         async function geocoderIDF(recherche) {
             // 1. Recherche via l'API officielle Places IDFM
             try {
@@ -187,7 +200,7 @@
                     }
                 }
             } catch (e) {
-                console.warn("Recherche Places IDFM indisponible, tentative BAN...", e);
+                console.warn("Recherche Places IDFM indisponible, bascule sur la BAN...", e);
             }
 
             // 2. Secours via la BAN (Base Adresse Nationale)
@@ -225,21 +238,24 @@
                 var succes = false;
 
                 if (useTransit) {
+                    // Tentative 1 : Trajet avec contrainte PMR stricte (si profil PMR)
                     try {
                         succes = await interrogerNavitia(dep.lat, dep.lng, arr.lat, arr.lng, profil, true);
                     } catch (e1) {
-                        console.warn("Recherche PMR stricte sans résultat, tentative sur le réseau global...", e1);
+                        console.warn("Recherche PMR stricte sans résultat...", e1);
                     }
 
+                    // Tentative 2 : Trajet multimodal global si le réseau n'est pas 100% PMR
                     if (!succes) {
                         try {
                             succes = await interrogerNavitia(dep.lat, dep.lng, arr.lat, arr.lng, profil, false);
                         } catch (e2) {
-                            console.warn("API IDFM indisponible, bascule sur le routage piéton certifié OSRM", e2);
+                            console.warn("API IDFM indisponible, bascule piétonne OSRM", e2);
                         }
                     }
                 }
 
+                // Tentative 3 : Tracé marche seule si aucun transport n'a pu être calculé
                 if (!succes) {
                     await tracerMarcheSeule(dep.lat, dep.lng, arr.lat, arr.lng, profil);
                 }
@@ -279,7 +295,7 @@
                             <span class="badge-line" style="background-color: ${color};">${codeLigne}</span>
                             <strong>${reseau} (${mode})</strong> dir. ${direction}<br>
                             <small>De <b>${section.from.name}</b> à <b>${section.to.name}</b></small>
-                            ${(profil === 'pmr') ? "<br><small style='color:#10b981;'>✓ Correspondance validée</small>" : ""}
+                            ${(profil === 'pmr' && strictPMR) ? "<br><small style='color:#10b981;'>✓ Correspondance PMR validée</small>" : ""}
                         </div>`;
 
                     if (section.geojson) {
@@ -315,7 +331,7 @@
             }
 
             if (!strictPMR && profil === 'pmr') {
-                instructionsHtml = `<div class="instruction-step" style="border-color: #f59e0b; background: rgba(245, 158, 11, 0.1);"><small style="color: #f59e0b;">⚠ Itinéraire multimodal global (vérifier l'accessibilité de certaines stations historiques).</small></div>` + instructionsHtml;
+                instructionsHtml = `<div class="instruction-step" style="border-color: #f59e0b; background: rgba(245, 158, 11, 0.1);"><small style="color: #f59e0b;">⚠ Itinéraire multimodal global (certaines stations de métro historiques manquent d'ascenseurs PMR).</small></div>` + instructionsHtml;
             }
 
             document.getElementById('steps-list').innerHTML = instructionsHtml;
@@ -334,7 +350,6 @@
             return true;
         }
 
-        // Correction de la route piéton OSRM (remplacement de arrLng,arrLng par arrLng,arrLat)
         async function tracerMarcheSeule(depLat, depLng, arrLat, arrLng, profil) {
             var url = `https://router.project-osrm.org/route/v1/foot/${depLng},${depLat};${arrLng},${arrLat}?geometries=geojson`;
             var res = await fetch(url);
