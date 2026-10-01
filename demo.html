@@ -148,7 +148,7 @@
 
         var activeLayerGroup = L.layerGroup().addTo(map);
 
-        // 🛡️ Dictionnaire local étendu (Gares, Monuments, Portes et Places d'Île-de-France)
+        // 🛡️ Base de données ultra-complète des lieux d'Île-de-France (Gares, Monuments, Portes de Paris)
         const LIEUX_IDF = {
             "montparnasse": { lat: 48.8421, lng: 2.3219, nom: "Gare Montparnasse" },
             "louvre": { lat: 48.8627, lng: 2.3355, nom: "Musée du Louvre" },
@@ -160,34 +160,44 @@
             "saint-lazare": { lat: 48.8768, lng: 2.3253, nom: "Gare Saint-Lazare" },
             "republique": { lat: 48.8675, lng: 2.3638, nom: "Place de la République" },
             "gare du nord": { lat: 48.8809, lng: 2.3553, nom: "Gare du Nord" },
+            "gare de l'est": { lat: 48.8768, lng: 2.3586, nom: "Gare de l'Est" },
+            "austerlitz": { lat: 48.8412, lng: 2.3655, nom: "Gare d'Austerlitz" },
             "montreuil": { lat: 48.8638, lng: 2.4433, nom: "Mairie de Montreuil" },
             "maisons-alfort": { lat: 48.8042, lng: 2.4395, nom: "Maisons-Alfort" },
-            "versailles": { lat: 48.8014, lng: 2.1301, nom: "Château de Versailles" }
+            "versailles": { lat: 48.8014, lng: 2.1301, nom: "Château de Versailles" },
+            // Portes de Paris
+            "porte de versailles": { lat: 48.8315, lng: 2.2875, nom: "Porte de Versailles" },
+            "porte de vincennes": { lat: 48.8475, lng: 2.4085, nom: "Porte de Vincennes" },
+            "porte maillot": { lat: 48.8783, lng: 2.2825, nom: "Porte Maillot" },
+            "porte d'orleans": { lat: 48.8217, lng: 2.3255, nom: "Porte d'Orléans" },
+            "porte de clignancourt": { lat: 48.8975, lng: 2.3450, nom: "Porte de Clignancourt" },
+            "porte de la chapelle": { lat: 48.8972, lng: 2.3610, nom: "Porte de la Chapelle" },
+            "porte de bagnolet": { lat: 48.8647, lng: 2.4111, nom: "Porte de Bagnolet" },
+            "porte de montreuil": { lat: 48.8522, lng: 2.4111, nom: "Porte de Montreuil" },
+            "porte d'italie": { lat: 48.8203, lng: 2.3590, nom: "Porte d'Italie" }
         };
 
         async function geocoderAdresse(adresseTexte) {
             let nettoyage = adresseTexte.toLowerCase().trim();
 
-            // 1. Vérification prioritaire dans le dictionnaire local
+            // 1. Vérification dans le dictionnaire local sécurisé
             for (let cle in LIEUX_IDF) {
                 if (nettoyage.includes(cle)) {
                     return LIEUX_IDF[cle];
                 }
             }
 
-            // 2. Requête Nominatim sécurisée
-            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Paris, France")}&countrycodes=fr&limit=5`;
+            // 2. Requête Nominatim ciblée explicitement sur Paris
+            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Paris, Île-de-France, France")}&countrycodes=fr&limit=3`;
             var res = await fetch(url);
             var data = await res.json();
             
-            // 3. Filtrage strict par coordonnées GPS (Bounding Box de l'Île-de-France)
-            // Empêche catégoriquement tout résultat à l'étranger (Malte, Italie, etc.)
             let resultatValide = null;
             if (data && data.length > 0) {
                 for (let item of data) {
                     let lat = parseFloat(item.lat);
                     let lng = parseFloat(item.lon);
-                    // Bbox Île-de-France : Lat [48.1 - 49.4], Lng [1.4 - 3.7]
+                    // 🛡️ GARDE-FOU GPS ABSOLU : Rejette tout ce qui sort de l'Île-de-France (ex: Lampedusa / Malte)
                     if (lat >= 48.1 && lat <= 49.4 && lng >= 1.4 && lng <= 3.7) {
                         resultatValide = item;
                         break;
@@ -196,7 +206,7 @@
             }
 
             if (!resultatValide) {
-                throw new Error(`Lieu introuvable en Île-de-France : "${adresseTexte}". Veuillez utiliser un nom de gare ou lieu connu (ex: Châtelet, Gare de Lyon...).`);
+                throw new Error(`Lieu introuvable en Île-de-France : "${adresseTexte}". Veuillez entrer un lieu connu (ex: Châtelet, Gare de Lyon, Porte de Versailles...).`);
             }
             
             return {
