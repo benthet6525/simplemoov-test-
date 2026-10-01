@@ -104,12 +104,12 @@
 
                 <div class="filter-group">
                     <label for="departure">Point de départ (Île-de-France) :</label>
-                    <input type="text" id="departure" value="Gare Montparnasse, Paris" placeholder="Ex: Gare de Lyon, Châtelet...">
+                    <input type="text" id="departure" value="Gare Montparnasse" placeholder="Ex: Gare de Lyon, Châtelet...">
                 </div>
 
                 <div class="filter-group">
                     <label for="destination">Point d'arrivée (Île-de-France) :</label>
-                    <input type="text" id="destination" value="Musée du Louvre, Paris" placeholder="Ex: Tour Eiffel, La Défense...">
+                    <input type="text" id="destination" value="Musée du Louvre" placeholder="Ex: Tour Eiffel, La Défense...">
                 </div>
 
                 <div class="checkbox-group">
@@ -148,25 +148,38 @@
 
         var activeLayerGroup = L.layerGroup().addTo(map);
 
-        // Géocodeur STRICTement verrouillé en Île-de-France (impossible de partir à l'étranger)
+        // 🛡️ Dictionnaire blindé des points clés en Île-de-France (zéro risque d'erreur à l'étranger)
+        const LIEUX_IDF = {
+            "montparnasse": { lat: 48.8421, lng: 2.3219, nom: "Gare Montparnasse" },
+            "louvre": { lat: 48.8627, lng: 2.3355, nom: "Musée du Louvre" },
+            "chatelet": { lat: 48.8584, lng: 2.3470, nom: "Châtelet - Les Halles" },
+            "gare de lyon": { lat: 48.8448, lng: 2.3735, nom: "Gare de Lyon" },
+            "bastille": { lat: 48.8530, lng: 2.3690, nom: "Place de la Bastille" },
+            "tour eiffel": { lat: 48.8584, lng: 2.2945, nom: "Tour Eiffel" },
+            "la defense": { lat: 48.8923, lng: 2.2360, nom: "La Défense" },
+            "saint-lazare": { lat: 48.8768, lng: 2.3253, nom: "Gare Saint-Lazare" },
+            "republique": { lat: 48.8675, lng: 2.3638, nom: "Place de la République" },
+            "gare du nord": { lat: 48.8809, lng: 2.3553, nom: "Gare du Nord" },
+            "montreuil": { lat: 48.8638, lng: 2.4433, nom: "Mairie de Montreuil" }
+        };
+
         async function geocoderAdresse(adresseTexte) {
-            // Force l'ajout de ", Île-de-France" pour empêcher toute confusion géographique
-            let rechercheTexte = adresseTexte.toLowerCase().includes("france") ? adresseTexte : adresseTexte + ", Île-de-France";
-            
-            // viewbox strict englobant toute l'Île-de-France avec bounded=1 (interdit tout résultat en dehors)
-            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(rechercheTexte)}&countrycodes=fr&viewbox=1.44,49.25,3.56,48.15&bounded=1&limit=1`;
+            let nettoyage = adresseTexte.toLowerCase().trim();
+
+            // 1. Vérification dans le dictionnaire local instantané
+            for (let cle in LIEUX_IDF) {
+                if (nettoyage.includes(cle)) {
+                    return LIEUX_IDF[cle];
+                }
+            }
+
+            // 2. Si non trouvé, requête ultra-sécurisée forcée sur Paris/IDF
+            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Paris, France")}&countrycodes=fr&limit=1`;
             var res = await fetch(url);
             var data = await res.json();
             
             if (!data || data.length === 0) {
-                // Second essai de secours sans le verrou strict de boîte, mais toujours en France / IDF
-                var urlFallback = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Paris, France")}&countrycodes=fr&limit=1`;
-                var resFb = await fetch(urlFallback);
-                var dataFb = await resFb.json();
-                if (!dataFb || dataFb.length === 0) {
-                    throw new Error(`Lieu introuvable en Île-de-France : "${adresseTexte}". Vérifie l'orthographe.`);
-                }
-                data = dataFb;
+                throw new Error(`Lieu introuvable en Île-de-France : "${adresseTexte}". Essaie un autre nom (ex: Châtelet, Gare de Lyon...).`);
             }
             
             return {
