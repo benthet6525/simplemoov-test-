@@ -148,7 +148,7 @@
 
         var activeLayerGroup = L.layerGroup().addTo(map);
 
-        // 🛡️ Dictionnaire blindé des points clés en Île-de-France (zéro risque d'erreur à l'étranger)
+        // 🛡️ Dictionnaire local étendu (Gares, Monuments, Portes et Places d'Île-de-France)
         const LIEUX_IDF = {
             "montparnasse": { lat: 48.8421, lng: 2.3219, nom: "Gare Montparnasse" },
             "louvre": { lat: 48.8627, lng: 2.3355, nom: "Musée du Louvre" },
@@ -160,32 +160,49 @@
             "saint-lazare": { lat: 48.8768, lng: 2.3253, nom: "Gare Saint-Lazare" },
             "republique": { lat: 48.8675, lng: 2.3638, nom: "Place de la République" },
             "gare du nord": { lat: 48.8809, lng: 2.3553, nom: "Gare du Nord" },
-            "montreuil": { lat: 48.8638, lng: 2.4433, nom: "Mairie de Montreuil" }
+            "montreuil": { lat: 48.8638, lng: 2.4433, nom: "Mairie de Montreuil" },
+            "maisons-alfort": { lat: 48.8042, lng: 2.4395, nom: "Maisons-Alfort" },
+            "versailles": { lat: 48.8014, lng: 2.1301, nom: "Château de Versailles" }
         };
 
         async function geocoderAdresse(adresseTexte) {
             let nettoyage = adresseTexte.toLowerCase().trim();
 
-            // 1. Vérification dans le dictionnaire local instantané
+            // 1. Vérification prioritaire dans le dictionnaire local
             for (let cle in LIEUX_IDF) {
                 if (nettoyage.includes(cle)) {
                     return LIEUX_IDF[cle];
                 }
             }
 
-            // 2. Si non trouvé, requête ultra-sécurisée forcée sur Paris/IDF
-            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Paris, France")}&countrycodes=fr&limit=1`;
+            // 2. Requête Nominatim sécurisée
+            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Paris, France")}&countrycodes=fr&limit=5`;
             var res = await fetch(url);
             var data = await res.json();
             
-            if (!data || data.length === 0) {
-                throw new Error(`Lieu introuvable en Île-de-France : "${adresseTexte}". Essaie un autre nom (ex: Châtelet, Gare de Lyon...).`);
+            // 3. Filtrage strict par coordonnées GPS (Bounding Box de l'Île-de-France)
+            // Empêche catégoriquement tout résultat à l'étranger (Malte, Italie, etc.)
+            let resultatValide = null;
+            if (data && data.length > 0) {
+                for (let item of data) {
+                    let lat = parseFloat(item.lat);
+                    let lng = parseFloat(item.lon);
+                    // Bbox Île-de-France : Lat [48.1 - 49.4], Lng [1.4 - 3.7]
+                    if (lat >= 48.1 && lat <= 49.4 && lng >= 1.4 && lng <= 3.7) {
+                        resultatValide = item;
+                        break;
+                    }
+                }
+            }
+
+            if (!resultatValide) {
+                throw new Error(`Lieu introuvable en Île-de-France : "${adresseTexte}". Veuillez utiliser un nom de gare ou lieu connu (ex: Châtelet, Gare de Lyon...).`);
             }
             
             return {
-                lat: parseFloat(data[0].lat),
-                lng: parseFloat(data[0].lon),
-                nom: data[0].display_name.split(',')[0]
+                lat: parseFloat(resultatValide.lat),
+                lng: parseFloat(resultatValide.lon),
+                nom: resultatValide.display_name.split(',')[0]
             };
         }
 
