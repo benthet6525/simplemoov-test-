@@ -148,11 +148,23 @@
 
         var activeLayerGroup = L.layerGroup().addTo(map);
 
+        // Géocodeur strict bloqué en France (Île-de-France) pour interdire tout départ à l'étranger
         async function geocoderAdresse(adresseTexte) {
-            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Île-de-France, France")}&limit=1`;
+            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte)}&countrycodes=fr&viewbox=1.44,49.25,3.56,48.15&bounded=0&limit=1`;
             var res = await fetch(url);
             var data = await res.json();
-            if (!data || data.length === 0) throw new Error(`Adresse introuvable : "${adresseTexte}"`);
+            
+            if (!data || data.length === 0) {
+                // Essai élargi à toute la France si le premier filtre strict échoue
+                var urlFallback = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Île-de-France")}&countrycodes=fr&limit=1`;
+                var resFb = await fetch(urlFallback);
+                var dataFb = await resFb.json();
+                if (!dataFb || dataFb.length === 0) {
+                    throw new Error(`Adresse introuvable en Île-de-France : "${adresseTexte}"`);
+                }
+                data = dataFb;
+            }
+            
             return {
                 lat: parseFloat(data[0].lat),
                 lng: parseFloat(data[0].lon),
@@ -179,14 +191,12 @@
                 var succes = false;
 
                 if (useTransit) {
-                    // Tentative 1 : Avec le filtre PMR strict si demandé
                     try {
                         succes = await interrogerNavitia(dep.lat, dep.lng, arr.lat, arr.lng, profil, true);
                     } catch (e1) {
                         console.warn("Recherche PMR stricte sans résultat, tentative sur le réseau global...", e1);
                     }
 
-                    // Tentative 2 : Sans filtre restrictif pour garantir un trajet complet (Métro/RER/Bus)
                     if (!succes) {
                         try {
                             succes = await interrogerNavitia(dep.lat, dep.lng, arr.lat, arr.lng, profil, false);
@@ -196,7 +206,6 @@
                     }
                 }
 
-                // Si les transports ne renvoient rien ou sont décochés, routage piéton de secours
                 if (!succes) {
                     await tracerMarcheSeule(dep.lat, dep.lng, arr.lat, arr.lng, profil);
                 }
@@ -216,7 +225,6 @@
         async function fetchIDFM(url) {
             var headers = { "Authorization": "apikey " + IDFM_API_KEY, "apiKey": IDFM_API_KEY };
             
-            // Stratégie multi-proxy pour un usage réel en production locale ou hébergée
             try {
                 let res = await fetch(url, { headers });
                 if (res.ok) return await res.json();
@@ -235,7 +243,6 @@
             throw new Error("Impossible de joindre l'API IDFM.");
         }
 
-        // Interrogation complète de l'API Navitia (Tous modes : Bus, Métro, RER, Tram)
         async function interrogerNavitia(depLat, depLng, arrLat, arrLng, profil, strictPMR) {
             var wheelchairParam = (profil === 'pmr' && strictPMR) ? "&wheelchair=true" : "";
             var rawUrl = `https://prim.iledefrance-mobilites.fr/marketplace/navitia/v1/coverage/fr-idf/journeys?from=${depLng};${depLat}&to=${arrLng};${arrLat}${wheelchairParam}`;
