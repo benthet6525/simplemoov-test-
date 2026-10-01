@@ -104,12 +104,12 @@
 
                 <div class="filter-group">
                     <label for="departure">Point de départ (Île-de-France) :</label>
-                    <input type="text" id="departure" value="Gare Montparnasse" placeholder="Ex: Gare de Lyon, Châtelet...">
+                    <input type="text" id="departure" value="Gare Montparnasse, Paris" placeholder="Ex: Gare de Lyon, Châtelet...">
                 </div>
 
                 <div class="filter-group">
                     <label for="destination">Point d'arrivée (Île-de-France) :</label>
-                    <input type="text" id="destination" value="Musée du Louvre" placeholder="Ex: Tour Eiffel, La Défense...">
+                    <input type="text" id="destination" value="Musée du Louvre, Paris" placeholder="Ex: Tour Eiffel, La Défense...">
                 </div>
 
                 <div class="checkbox-group">
@@ -148,71 +148,23 @@
 
         var activeLayerGroup = L.layerGroup().addTo(map);
 
-        // 🛡️ Base de données ultra-complète des lieux d'Île-de-France (Gares, Monuments, Portes de Paris)
-        const LIEUX_IDF = {
-            "montparnasse": { lat: 48.8421, lng: 2.3219, nom: "Gare Montparnasse" },
-            "louvre": { lat: 48.8627, lng: 2.3355, nom: "Musée du Louvre" },
-            "chatelet": { lat: 48.8584, lng: 2.3470, nom: "Châtelet - Les Halles" },
-            "gare de lyon": { lat: 48.8448, lng: 2.3735, nom: "Gare de Lyon" },
-            "bastille": { lat: 48.8530, lng: 2.3690, nom: "Place de la Bastille" },
-            "tour eiffel": { lat: 48.8584, lng: 2.2945, nom: "Tour Eiffel" },
-            "la defense": { lat: 48.8923, lng: 2.2360, nom: "La Défense" },
-            "saint-lazare": { lat: 48.8768, lng: 2.3253, nom: "Gare Saint-Lazare" },
-            "republique": { lat: 48.8675, lng: 2.3638, nom: "Place de la République" },
-            "gare du nord": { lat: 48.8809, lng: 2.3553, nom: "Gare du Nord" },
-            "gare de l'est": { lat: 48.8768, lng: 2.3586, nom: "Gare de l'Est" },
-            "austerlitz": { lat: 48.8412, lng: 2.3655, nom: "Gare d'Austerlitz" },
-            "montreuil": { lat: 48.8638, lng: 2.4433, nom: "Mairie de Montreuil" },
-            "maisons-alfort": { lat: 48.8042, lng: 2.4395, nom: "Maisons-Alfort" },
-            "versailles": { lat: 48.8014, lng: 2.1301, nom: "Château de Versailles" },
-            // Portes de Paris
-            "porte de versailles": { lat: 48.8315, lng: 2.2875, nom: "Porte de Versailles" },
-            "porte de vincennes": { lat: 48.8475, lng: 2.4085, nom: "Porte de Vincennes" },
-            "porte maillot": { lat: 48.8783, lng: 2.2825, nom: "Porte Maillot" },
-            "porte d'orleans": { lat: 48.8217, lng: 2.3255, nom: "Porte d'Orléans" },
-            "porte de clignancourt": { lat: 48.8975, lng: 2.3450, nom: "Porte de Clignancourt" },
-            "porte de la chapelle": { lat: 48.8972, lng: 2.3610, nom: "Porte de la Chapelle" },
-            "porte de bagnolet": { lat: 48.8647, lng: 2.4111, nom: "Porte de Bagnolet" },
-            "porte de montreuil": { lat: 48.8522, lng: 2.4111, nom: "Porte de Montreuil" },
-            "porte d'italie": { lat: 48.8203, lng: 2.3590, nom: "Porte d'Italie" }
-        };
-
+        // 🇫🇷 Géocodeur officiel français (API Base Adresse Nationale) -> Zéro risque de départ à l'étranger
         async function geocoderAdresse(adresseTexte) {
-            let nettoyage = adresseTexte.toLowerCase().trim();
-
-            // 1. Vérification dans le dictionnaire local sécurisé
-            for (let cle in LIEUX_IDF) {
-                if (nettoyage.includes(cle)) {
-                    return LIEUX_IDF[cle];
-                }
-            }
-
-            // 2. Requête Nominatim ciblée explicitement sur Paris
-            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Paris, Île-de-France, France")}&countrycodes=fr&limit=3`;
+            var url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresseTexte)}&limit=1`;
             var res = await fetch(url);
             var data = await res.json();
             
-            let resultatValide = null;
-            if (data && data.length > 0) {
-                for (let item of data) {
-                    let lat = parseFloat(item.lat);
-                    let lng = parseFloat(item.lon);
-                    // 🛡️ GARDE-FOU GPS ABSOLU : Rejette tout ce qui sort de l'Île-de-France (ex: Lampedusa / Malte)
-                    if (lat >= 48.1 && lat <= 49.4 && lng >= 1.4 && lng <= 3.7) {
-                        resultatValide = item;
-                        break;
-                    }
-                }
-            }
-
-            if (!resultatValide) {
-                throw new Error(`Lieu introuvable en Île-de-France : "${adresseTexte}". Veuillez entrer un lieu connu (ex: Châtelet, Gare de Lyon, Porte de Versailles...).`);
+            if (!data.features || data.features.length === 0) {
+                throw new Error(`Adresse introuvable en France : "${adresseTexte}".`);
             }
             
+            var coords = data.features[0].geometry.coordinates; // Format GeoJSON : [longitude, latitude]
+            var nomLieu = data.features[0].properties.label;
+
             return {
-                lat: parseFloat(resultatValide.lat),
-                lng: parseFloat(resultatValide.lon),
-                nom: resultatValide.display_name.split(',')[0]
+                lng: coords[0],
+                lat: coords[1],
+                nom: nomLieu
             };
         }
 
