@@ -148,19 +148,23 @@
 
         var activeLayerGroup = L.layerGroup().addTo(map);
 
-        // Géocodeur strict bloqué en France (Île-de-France) pour interdire tout départ à l'étranger
+        // Géocodeur STRICTement verrouillé en Île-de-France (impossible de partir à l'étranger)
         async function geocoderAdresse(adresseTexte) {
-            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte)}&countrycodes=fr&viewbox=1.44,49.25,3.56,48.15&bounded=0&limit=1`;
+            // Force l'ajout de ", Île-de-France" pour empêcher toute confusion géographique
+            let rechercheTexte = adresseTexte.toLowerCase().includes("france") ? adresseTexte : adresseTexte + ", Île-de-France";
+            
+            // viewbox strict englobant toute l'Île-de-France avec bounded=1 (interdit tout résultat en dehors)
+            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(rechercheTexte)}&countrycodes=fr&viewbox=1.44,49.25,3.56,48.15&bounded=1&limit=1`;
             var res = await fetch(url);
             var data = await res.json();
             
             if (!data || data.length === 0) {
-                // Essai élargi à toute la France si le premier filtre strict échoue
-                var urlFallback = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Île-de-France")}&countrycodes=fr&limit=1`;
+                // Second essai de secours sans le verrou strict de boîte, mais toujours en France / IDF
+                var urlFallback = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresseTexte + ", Paris, France")}&countrycodes=fr&limit=1`;
                 var resFb = await fetch(urlFallback);
                 var dataFb = await resFb.json();
                 if (!dataFb || dataFb.length === 0) {
-                    throw new Error(`Adresse introuvable en Île-de-France : "${adresseTexte}"`);
+                    throw new Error(`Lieu introuvable en Île-de-France : "${adresseTexte}". Vérifie l'orthographe.`);
                 }
                 data = dataFb;
             }
