@@ -104,12 +104,12 @@
 
                 <div class="filter-group">
                     <label for="departure">Point de départ (Île-de-France) :</label>
-                    <input type="text" id="departure" value="Gare Montparnasse, Paris" placeholder="Ex: Gare de Lyon, Châtelet...">
+                    <input type="text" id="departure" value="Gare Montparnasse" placeholder="Ex: Gare de Lyon, Châtelet...">
                 </div>
 
                 <div class="filter-group">
                     <label for="destination">Point d'arrivée (Île-de-France) :</label>
-                    <input type="text" id="destination" value="Musée du Louvre, Paris" placeholder="Ex: Tour Eiffel, La Défense...">
+                    <input type="text" id="destination" value="Musée du Louvre" placeholder="Ex: Tour Eiffel, La Défense...">
                 </div>
 
                 <div class="checkbox-group">
@@ -148,24 +148,62 @@
 
         var activeLayerGroup = L.layerGroup().addTo(map);
 
-        // 🇫🇷 Géocodeur officiel BAN (Gouvernement français) - 100% France
-        async function geocoderAdresse(adresseTexte) {
-            var url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresseTexte)}&limit=1`;
-            var res = await fetch(url);
-            var data = await res.json();
+        async function fetchIDFM(url) {
+            var headers = { "Authorization": "apikey " + IDFM_API_KEY, "apiKey": IDFM_API_KEY };
             
-            if (!data.features || data.features.length === 0) {
-                throw new Error(`Adresse introuvable en France : "${adresseTexte}".`);
-            }
-            
-            var coords = data.features[0].geometry.coordinates; // [longitude, latitude]
-            var nomLieu = data.features[0].properties.label;
+            try {
+                let res = await fetch(url, { headers });
+                if (res.ok) return await res.json();
+            } catch(e) {}
 
-            return {
-                lng: coords[0],
-                lat: coords[1],
-                nom: nomLieu
-            };
+            try {
+                let res = await fetch("https://corsproxy.io/?" + encodeURIComponent(url), { headers });
+                if (res.ok) return await res.json();
+            } catch(e) {}
+
+            try {
+                let res = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+                if (res.ok) return await res.json();
+            } catch(e) {}
+
+            throw new Error("Impossible de joindre l'API IDFM.");
+        }
+
+        // Géocodeur hybride : IDFM Places (Gares/Metros/POIs) + BAN Gouvernement (Adresses de rue)
+        async function geocoderIDF(recherche) {
+            // 1. Recherche via l'API officielle Places IDFM
+            try {
+                let urlIDFM = `https://prim.iledefrance-mobilites.fr/marketplace/navitia/v1/coverage/fr-idf/places?q=${encodeURIComponent(recherche)}`;
+                let dataIDFM = await fetchIDFM(urlIDFM);
+                if (dataIDFM && dataIDFM.places && dataIDFM.places.length > 0) {
+                    let p = dataIDFM.places[0];
+                    let coord = p.stop_area?.coord || p.poi?.coord || p.address?.coord;
+                    if (coord && coord.lat && coord.lon) {
+                        return {
+                            lat: parseFloat(coord.lat),
+                            lng: parseFloat(coord.lon),
+                            nom: p.name
+                        };
+                    }
+                }
+            } catch (e) {
+                console.warn("Recherche Places IDFM indisponible, tentative BAN...", e);
+            }
+
+            // 2. Secours via la BAN (Base Adresse Nationale)
+            let urlBan = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(recherche)}&limit=1`;
+            let resBan = await fetch(urlBan);
+            let dataBan = await resBan.json();
+            if (dataBan.features && dataBan.features.length > 0) {
+                let c = dataBan.features[0].geometry.coordinates; // [lon, lat]
+                return {
+                    lng: c[0],
+                    lat: c[1],
+                    nom: dataBan.features[0].properties.label
+                };
+            }
+
+            throw new Error(`Lieu introuvable en Île-de-France : "${recherche}"`);
         }
 
         async function calculerItineraire() {
@@ -181,8 +219,8 @@
             activeLayerGroup.clearLayers();
 
             try {
-                var dep = await geocoderAdresse(departureInput);
-                var arr = await geocoderAdresse(destinationInput);
+                var dep = await geocoderIDF(departureInput);
+                var arr = await geocoderIDF(destinationInput);
 
                 var succes = false;
 
@@ -216,27 +254,6 @@
 
             document.getElementById('btn-calculer').disabled = false;
             document.getElementById('loading-indicator').style.display = "none";
-        }
-
-        async function fetchIDFM(url) {
-            var headers = { "Authorization": "apikey " + IDFM_API_KEY, "apiKey": IDFM_API_KEY };
-            
-            try {
-                let res = await fetch(url, { headers });
-                if (res.ok) return await res.json();
-            } catch(e) {}
-
-            try {
-                let res = await fetch("https://corsproxy.io/?" + encodeURIComponent(url), { headers });
-                if (res.ok) return await res.json();
-            } catch(e) {}
-
-            try {
-                let res = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
-                if (res.ok) return await res.json();
-            } catch(e) {}
-
-            throw new Error("Impossible de joindre l'API IDFM.");
         }
 
         async function interrogerNavitia(depLat, depLng, arrLat, arrLng, profil, strictPMR) {
@@ -317,8 +334,9 @@
             return true;
         }
 
+        // Correction de la route piéton OSRM (remplacement de arrLng,arrLng par arrLng,arrLat)
         async function tracerMarcheSeule(depLat, depLng, arrLat, arrLng, profil) {
-            var url = `https://router.project-osrm.org/route/v1/foot/${depLng},${depLat};${arrLng},${arrLng}?geometries=geojson`;
+            var url = `https://router.project-osrm.org/route/v1/foot/${depLng},${depLat};${arrLng},${arrLat}?geometries=geojson`;
             var res = await fetch(url);
             var data = await res.json();
 
